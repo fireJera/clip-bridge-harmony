@@ -1,0 +1,196 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Clip Bridge clipboard manager module"
+    },
+    {
+      "name": "ability_desc",
+      "value": "Clip Bridge main ability"
+    },
+    {
+      "name": "ability_label",
+      "value": "Clip Bridge"
+    },
+    {
+      "name": "perm_pasteboard_reason",
+      "value": "Clip Bridge needs clipboard access to capture and manage your clipboard history."
+    },
+    {
+      "name": "perm_background_reason",
+      "value": "Clip Bridge needs to run in the background to monitor clipboard changes."
+    },
+    {
+      "name": "tab_history",
+      "value": "History"
+    },
+    {
+      "name": "tab_favorites",
+      "value": "Favorites"
+    },
+    {
+      "name": "tab_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "copy_success",
+      "value": "Copied to clipboard"
+    },
+    {
+      "name": "delete_confirm",
+      "value": "Are you sure you want to delete this item?"
+    },
+    {
+      "name": "delete_all_confirm",
+      "value": "Are you sure you want to delete all history? This cannot be undone."
+    },
+    {
+      "name": "delete",
+      "value": "Delete"
+    },
+    {
+      "name": "cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "confirm",
+      "value": "Confirm"
+    },
+    {
+      "name": "save",
+      "value": "Save"
+    },
+    {
+      "name": "search_placeholder",
+      "value": "Search clipboard history..."
+    },
+    {
+      "name": "no_results",
+      "value": "No results found"
+    },
+    {
+      "name": "empty_history",
+      "value": "No clipboard items yet"
+    },
+    {
+      "name": "empty_history_hint",
+      "value": "Copied items will appear here automatically."
+    },
+    {
+      "name": "empty_favorites",
+      "value": "No favorites yet"
+    },
+    {
+      "name": "empty_favorites_hint",
+      "value": "Long press an item and tap the star to add it to favorites."
+    },
+    {
+      "name": "type_text",
+      "value": "Text"
+    },
+    {
+      "name": "type_url",
+      "value": "URL"
+    },
+    {
+      "name": "type_email",
+      "value": "Email"
+    },
+    {
+      "name": "type_phone",
+      "value": "Phone"
+    },
+    {
+      "name": "type_image",
+      "value": "Image"
+    },
+    {
+      "name": "type_address",
+      "value": "Address"
+    },
+    {
+      "name": "settings_history_limit",
+      "value": "History limit"
+    },
+    {
+      "name": "settings_auto_detect",
+      "value": "Auto-detect content type"
+    },
+    {
+      "name": "settings_auto_detect_desc",
+      "value": "Automatically categorize clipboard content as URL, email, phone, etc."
+    },
+    {
+      "name": "settings_show_preview",
+      "value": "Show content preview"
+    },
+    {
+      "name": "settings_show_preview_desc",
+      "value": "Display a preview of clipboard content in the history list."
+    },
+    {
+      "name": "settings_dark_mode",
+      "value": "Dark mode"
+    },
+    {
+      "name": "settings_dark_mode_system",
+      "value": "Follow system"
+    },
+    {
+      "name": "settings_dark_mode_light",
+      "value": "Light"
+    },
+    {
+      "name": "settings_dark_mode_dark",
+      "value": "Dark"
+    },
+    {
+      "name": "settings_clear_history",
+      "value": "Clear all history"
+    },
+    {
+      "name": "settings_about",
+      "value": "About"
+    },
+    {
+      "name": "settings_version",
+      "value": "Version"
+    },
+    {
+      "name": "added_to_favorites",
+      "value": "Added to favorites"
+    },
+    {
+      "name": "removed_from_favorites",
+      "value": "Removed from favorites"
+    },
+    {
+      "name": "item_deleted",
+      "value": "Item deleted"
+    },
+    {
+      "name": "undo",
+      "value": "Undo"
+    },
+    {
+      "name": "copied_at",
+      "value": "Copied at"
+    },
+    {
+      "name": "tags",
+      "value": "Tags"
+    },
+    {
+      "name": "add_tag",
+      "value": "Add tag"
+    },
+    {
+      "name": "tag_name",
+      "value": "Tag name"
+    },
+    {
+      "name": "app_icon",
+      "value": "app_icon"
+    }
+  ]
+}
