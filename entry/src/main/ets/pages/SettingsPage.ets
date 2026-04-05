@@ -59,6 +59,7 @@ export struct SettingsPage {
   }
 
   build() {
+    Stack() {
     Scroll() {
       Column() {
         // Page title
@@ -164,26 +165,32 @@ export struct SettingsPage {
 
         // Blacklist entries
         if (this.blacklist.length > 0) {
-          ForEach(this.blacklist, (entry: AppBlacklistEntry) => {
-            Row() {
-              Text(entry.appName || entry.bundleName)
-                .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                .fontColor(ThemeTokens.TEXT_PRIMARY)
-                .layoutWeight(1)
+          List({ space: 0 }) {
+            ForEach(this.blacklist, (entry: AppBlacklistEntry) => {
+              ListItem() {
+                Row() {
+                  Text(entry.appName || entry.bundleName)
+                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                    .fontColor(ThemeTokens.TEXT_PRIMARY)
+                    .layoutWeight(1)
 
-              Text('移除')
-                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                .fontColor(ThemeTokens.ERROR)
-                .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
-                .onClick(() => {
-                  this.removeBlacklistEntry(entry.id);
-                })
-            }
-            .width('100%')
-            .height(44)
-            .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-            .alignItems(VerticalAlign.Center)
-          }, (entry: AppBlacklistEntry) => entry.id.toString())
+                  Text('移除')
+                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                    .fontColor(ThemeTokens.ERROR)
+                    .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
+                    .onClick(() => {
+                      this.removeBlacklistEntry(entry.id);
+                    })
+                }
+                .width('100%')
+                .height(44)
+                .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
+                .alignItems(VerticalAlign.Center)
+              }
+              .swipeAction({ end: this.deleteBlacklistSwipeAction(entry) })
+            }, (entry: AppBlacklistEntry) => entry.id.toString())
+          }
+          .width('100%')
         } else {
           Row() {
             Text('暂无黑名单应用')
@@ -337,6 +344,74 @@ export struct SettingsPage {
     .width('100%')
     .height('100%')
     .backgroundColor(ThemeTokens.BACKGROUND)
+
+    // Add-blacklist dialog overlay
+    if (this.showAddBlacklistDialog) {
+      Column() {
+        Column() {
+          Text('添加黑名单应用')
+            .fontSize(ThemeTokens.FONT_SIZE_TITLE)
+            .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
+            .fontColor(ThemeTokens.TEXT_PRIMARY)
+            .margin({ bottom: ThemeTokens.SPACING_MD })
+
+          TextInput({ placeholder: 'Bundle Name (如 com.example.app)', text: this.newBundleName })
+            .width('100%')
+            .height(40)
+            .fontSize(ThemeTokens.FONT_SIZE_BODY)
+            .fontColor(ThemeTokens.TEXT_PRIMARY)
+            .onChange((value: string) => {
+              this.newBundleName = value;
+            })
+
+          TextInput({ placeholder: '应用名称 (可选)', text: this.newAppName })
+            .width('100%')
+            .height(40)
+            .fontSize(ThemeTokens.FONT_SIZE_BODY)
+            .fontColor(ThemeTokens.TEXT_PRIMARY)
+            .margin({ top: ThemeTokens.SPACING_SM })
+            .onChange((value: string) => {
+              this.newAppName = value;
+            })
+
+          Row() {
+            Text('取消')
+              .fontSize(ThemeTokens.FONT_SIZE_BODY)
+              .fontColor(ThemeTokens.TEXT_SECONDARY)
+              .layoutWeight(1)
+              .textAlign(TextAlign.Center)
+              .onClick(() => {
+                this.showAddBlacklistDialog = false;
+              })
+
+            Text('添加')
+              .fontSize(ThemeTokens.FONT_SIZE_BODY)
+              .fontColor(ThemeTokens.PRIMARY)
+              .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+              .layoutWeight(1)
+              .textAlign(TextAlign.Center)
+              .onClick(() => {
+                this.confirmAddBlacklist();
+              })
+          }
+          .width('100%')
+          .margin({ top: ThemeTokens.SPACING_MD })
+        }
+        .width('85%')
+        .padding(ThemeTokens.SPACING_LG)
+        .backgroundColor(ThemeTokens.SURFACE)
+        .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor(0x80000000)
+      .onClick(() => {
+        this.showAddBlacklistDialog = false;
+      })
+    }
+    } // Stack
   }
 
   @Builder
@@ -386,27 +461,24 @@ export struct SettingsPage {
   }
 
   private showAddBlacklist(): void {
-    AlertDialog.show({
-      title: '添加黑名单应用',
-      message: '请输入应用的 Bundle Name 和显示名称',
-      autoCancel: true,
-      alignment: DialogAlignment.Center,
-      buttons: [
-        {
-          text: '取消',
-          color: ThemeTokens.TEXT_SECONDARY,
-          action: () => {}
-        },
-        {
-          text: '添加',
-          color: ThemeTokens.PRIMARY,
-          action: () => {
-            // Note: In a full implementation this would use a TextInput dialog.
-            // For now, this serves as the entry point for adding to blacklist.
-          }
-        }
-      ]
-    });
+    this.newBundleName = '';
+    this.newAppName = '';
+    this.showAddBlacklistDialog = true;
+  }
+
+  private async confirmAddBlacklist(): Promise<void> {
+    const bundleName: string = this.newBundleName.trim();
+    if (!bundleName) {
+      return;
+    }
+    const appName: string = this.newAppName.trim() || bundleName;
+    if (this.viewModel) {
+      await this.viewModel.addToBlacklist(bundleName, appName);
+      this.blacklist = [...this.viewModel.blacklist];
+    }
+    this.showAddBlacklistDialog = false;
+    this.newBundleName = '';
+    this.newAppName = '';
   }
 
   /**
@@ -426,6 +498,26 @@ export struct SettingsPage {
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
       this.onDeleteCategory(cat.id);
+    })
+  }
+
+  /**
+   * Swipe-to-delete builder for blacklist list items.
+   */
+  @Builder
+  deleteBlacklistSwipeAction(entry: AppBlacklistEntry) {
+    Row() {
+      Text('删除')
+        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+        .fontColor(Color.White)
+        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
+    }
+    .height('100%')
+    .backgroundColor(ThemeTokens.ERROR)
+    .justifyContent(FlexAlign.Center)
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      this.removeBlacklistEntry(entry.id);
     })
   }
 

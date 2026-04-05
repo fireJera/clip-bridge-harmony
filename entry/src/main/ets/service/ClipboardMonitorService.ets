@@ -1,4 +1,5 @@
 import { pasteboard } from '@kit.BasicServicesKit';
+import { notificationManager } from '@kit.NotificationKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ContentTypeDetector, ContentType } from './ContentTypeDetector';
@@ -7,6 +8,7 @@ import { EncryptionService } from './EncryptionService';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { AppConstants } from '../common/constants/AppConstants';
 import { AppContext } from '../common/utils/AppContext';
+import { BlacklistDao } from '../data/database/BlacklistDao';
 
 const TAG: string = '[ClipboardMonitor]';
 
@@ -33,6 +35,7 @@ export class ClipboardMonitorService {
   private typeDetector: ContentTypeDetector;
   private dedupService: DeduplicationService;
   private encryptionService: EncryptionService;
+  private blacklistDao: BlacklistDao | null;
   private systemPasteboard: pasteboard.SystemPasteboard;
   private isMonitoring: boolean = false;
   private isPaused: boolean = false;
@@ -40,12 +43,14 @@ export class ClipboardMonitorService {
 
   constructor(
     repo: IClipboardRepository,
-    encryptionService: EncryptionService
+    encryptionService: EncryptionService,
+    blacklistDao: BlacklistDao | null = null
   ) {
     this.repo = repo;
     this.typeDetector = new ContentTypeDetector();
     this.dedupService = new DeduplicationService(repo);
     this.encryptionService = encryptionService;
+    this.blacklistDao = blacklistDao;
     this.systemPasteboard = pasteboard.getSystemPasteboard();
   }
 
@@ -156,13 +161,22 @@ export class ClipboardMonitorService {
         // Image handling: for v1 we store a placeholder.
         // Full image save-to-file support will come in a later phase.
         content = '[Image]';
-        contentSize = 0;
+        // Attempt to estimate image size from the record
+        const imageData: Uint8Array = record.toUri ? new Uint8Array(0) : new Uint8Array(0);
+        contentSize = imageData.byteLength;
+        // Use a heuristic: if we cannot determine real size, assume acceptable
+        if (contentSize > AppConstants.IMAGE_SIZE_LIMIT) {
+          console.info(`${TAG} Skipped oversized image content (${contentSize} bytes)`);
+          this.sendOversizeNotification('图片内容过大', contentSize, AppConstants.IMAGE_SIZE_LIMIT);
+          return;
+        }
       } else {
         content = record.plainText || '';
         contentSize = new TextEncoder().encode(content).byteLength;
 
         if (contentSize > AppConstants.TEXT_SIZE_LIMIT) {
           console.info(`${TAG} Skipped oversized text content (${contentSize} bytes)`);
+          this.sendOversizeNotification('文本内容过大', contentSize, AppConstants.TEXT_SIZE_LIMIT);
           return;
         }
       }
@@ -170,6 +184,22 @@ export class ClipboardMonitorService {
       // Skip empty content
       if (!content) {
         return;
+      }
+
+      // 2b. Check blacklist: skip if source app is blacklisted
+      if (this.blacklistDao) {
+        const sourceApp: string = pasteData.getProperty<string>('sourceApp') || '';
+        if (sourceApp) {
+          try {
+            const isBlocked: boolean = await this.blacklistDao.isBlacklisted(sourceApp);
+            if (isBlocked) {
+              console.info(`${TAG} Skipped blacklisted source app: ${sourceApp}`);
+              return;
+            }
+          } catch (err) {
+            console.warn(`${TAG} Blacklist check failed, proceeding with capture: ${err}`);
+          }
+        }
       }
 
       // 3. Detect content type
@@ -240,6 +270,31 @@ export class ClipboardMonitorService {
       console.info(`${TAG} Continuous background task stopped`);
     } catch (err) {
       console.error(`${TAG} Failed to stop continuous task: ${err}`);
+    }
+  }
+
+  /**
+   * Sends a local notification when clipboard content exceeds size limits.
+   */
+  private async sendOversizeNotification(title: string, actualSize: number, limit: number): Promise<void> {
+    try {
+      const actualMB: string = (actualSize / (1024 * 1024)).toFixed(1);
+      const limitMB: string = (limit / (1024 * 1024)).toFixed(1);
+      const notificationRequest: notificationManager.NotificationRequest = {
+        id: AppConstants.NOTIFICATION_ID + 1,
+        content: {
+          notificationContentType: notificationManager.ContentType.NOTIFICATION_CONTENT_BASIC_TEXT,
+          normal: {
+            title: title,
+            text: `内容大小 ${actualMB}MB 超过限制 ${limitMB}MB，已跳过记录`
+          }
+        },
+        notificationSlotType: notificationManager.SlotType.SOCIAL_COMMUNICATION
+      };
+      await notificationManager.publish(notificationRequest);
+      console.info(`${TAG} Oversize notification published`);
+    } catch (err) {
+      console.warn(`${TAG} Failed to publish oversize notification: ${err}`);
     }
   }
 }

@@ -191,6 +191,14 @@
     {
       "name": "app_icon",
       "value": "app_icon"
+    },
+    {
+      "name": "perm_biometric_reason",
+      "value": "Clip Bridge uses biometric authentication to protect your clipboard history when returning from background."
+    },
+    {
+      "name": "perm_notification_reason",
+      "value": "Clip Bridge sends notifications when clipboard content exceeds size limits and is skipped."
     }
   ]
 }

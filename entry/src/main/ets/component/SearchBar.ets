@@ -66,6 +66,7 @@ export struct SearchBar {
     .backgroundColor(ThemeTokens.SURFACE)
     .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
     .alignItems(VerticalAlign.Center)
+    .accessibilityText('搜索框')
   }
 
   /**

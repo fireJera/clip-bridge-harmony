@@ -27,5 +27,6 @@ export struct EmptyState {
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .padding(ThemeTokens.SPACING_XXL)
+    .accessibilityText(this.message)
   }
 }

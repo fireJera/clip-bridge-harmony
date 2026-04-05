@@ -42,6 +42,22 @@
           "abilities": ["EntryAbility"],
           "when": "always"
         }
+      },
+      {
+        "name": "ohos.permission.ACCESS_BIOMETRIC",
+        "reason": "$string:perm_biometric_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.NOTIFICATION_CONTROLLER",
+        "reason": "$string:perm_notification_reason",
+        "usedScene": {
+          "abilities": ["EntryAbility"],
+          "when": "inuse"
+        }
       }
     ]
   }

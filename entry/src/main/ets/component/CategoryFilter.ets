@@ -106,6 +106,7 @@ export struct CategoryFilter {
     .onClick(() => {
       params.onToggle();
     })
+    .accessibilityText(params.label)
   }
 
   private toggleType(type: string): void {

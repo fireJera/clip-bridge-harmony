@@ -1,8 +1,10 @@
 import { UIAbility, AbilityConstant, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
+import { userAuth } from '@kit.UserAuthenticationKit';
 import { AppDatabase } from '../data/database/AppDatabase';
 import { ClipboardDao } from '../data/database/ClipboardDao';
+import { BlacklistDao } from '../data/database/BlacklistDao';
 import { UserSettings } from '../data/preferences/UserSettings';
 import { AppContext } from '../common/utils/AppContext';
 import { EncryptionService } from '../service/EncryptionService';
@@ -16,6 +18,7 @@ const DOMAIN: number = 0x0000;
 export default class EntryAbility extends UIAbility {
   private db: AppDatabase | null = null;
   private monitorService: ClipboardMonitorService | null = null;
+  private settings: UserSettings | null = null;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
     hilog.info(DOMAIN, TAG, 'onCreate');
@@ -36,6 +39,7 @@ export default class EntryAbility extends UIAbility {
     let userSettings: UserSettings;
     try {
       userSettings = await UserSettings.getInstance(this.context);
+      this.settings = userSettings;
       hilog.info(DOMAIN, TAG, 'UserSettings initialized successfully');
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to initialize UserSettings: %{public}s', JSON.stringify(error));
@@ -54,11 +58,12 @@ export default class EntryAbility extends UIAbility {
 
     // 5. Wire up the repository layer: DAO -> RepositoryImpl
     const dao: ClipboardDao = new ClipboardDao(this.db.getStore());
+    const blacklistDao: BlacklistDao = new BlacklistDao(this.db.getStore());
     const repo: IClipboardRepository = new ClipboardRepositoryImpl(dao, encryptionService, userSettings);
 
     // 6. Create and start the clipboard monitor service
     try {
-      this.monitorService = new ClipboardMonitorService(repo, encryptionService);
+      this.monitorService = new ClipboardMonitorService(repo, encryptionService, blacklistDao);
       await this.monitorService.start();
       hilog.info(DOMAIN, TAG, 'ClipboardMonitorService started successfully');
     } catch (error) {
@@ -100,8 +105,73 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
-    // TODO (Phase 7): Biometric re-authentication will be added here
     hilog.info(DOMAIN, TAG, 'onForeground');
+    this.promptBiometricAuth();
+  }
+
+  /**
+   * Prompts biometric/device credential authentication when the app returns
+   * to the foreground, if the user has enabled biometric re-authentication.
+   * On failure the dialog is re-shown (no crash, keeps the app locked).
+   */
+  private async promptBiometricAuth(): Promise<void> {
+    if (!this.settings) {
+      return;
+    }
+
+    try {
+      const isBioEnabled: boolean = await this.settings.isBiometricEnabled();
+      if (!isBioEnabled) {
+        return;
+      }
+
+      // Determine available auth types, falling back to PIN if biometric unavailable
+      const authTypes: userAuth.UserAuthType[] = [];
+      try {
+        if (userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT,
+          userAuth.AuthTrustLevel.ATL1) === userAuth.UserAuthResult.SUCCESS) {
+          authTypes.push(userAuth.UserAuthType.FINGERPRINT);
+        }
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, 'Fingerprint not available: %{public}s', JSON.stringify(e));
+      }
+      try {
+        if (userAuth.getAvailableStatus(userAuth.UserAuthType.FACE,
+          userAuth.AuthTrustLevel.ATL1) === userAuth.UserAuthResult.SUCCESS) {
+          authTypes.push(userAuth.UserAuthType.FACE);
+        }
+      } catch (e) {
+        hilog.warn(DOMAIN, TAG, 'Face not available: %{public}s', JSON.stringify(e));
+      }
+
+      // Always include PIN as fallback
+      authTypes.push(userAuth.UserAuthType.PIN);
+
+      const authInstance: userAuth.UserAuthInstance = userAuth.getUserAuthInstance(
+        {
+          challenge: new Uint8Array(32),
+          authType: authTypes,
+          trustLevel: userAuth.AuthTrustLevel.ATL1
+        },
+        {
+          windowVisibility: userAuth.WindowVisibilityType.STATUS_BAR_NAVIGATION_BAR_VISIBLE
+        }
+      );
+
+      authInstance.on('result', (result: userAuth.UserAuthResult) => {
+        if (result === userAuth.UserAuthResult.SUCCESS) {
+          hilog.info(DOMAIN, TAG, 'Biometric auth succeeded');
+        } else {
+          hilog.warn(DOMAIN, TAG, 'Biometric auth failed (result=%{public}d), retrying', result);
+          // Re-prompt after failure to keep the app locked
+          this.promptBiometricAuth();
+        }
+      });
+
+      authInstance.start();
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Biometric auth error: %{public}s', JSON.stringify(error));
+    }
   }
 
   onBackground(): void {

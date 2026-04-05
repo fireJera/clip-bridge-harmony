@@ -52,7 +52,8 @@ export struct ClipboardListItem {
       .height(ThemeTokens.LIST_ITEM_HEIGHT)
       .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
       .alignItems(VerticalAlign.Center)
-    }
+      .accessibilityText(this.entry.contentPreview)
+      .accessibilityDescription(`${this.getTypeLabel()} ${this.formatTime(this.entry.updatedAt)}`)
     .onClick(() => {
       if (this.onItemClick) {
         this.onItemClick(this.entry);
