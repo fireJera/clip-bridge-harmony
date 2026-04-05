@@ -21,7 +21,8 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
   async insert(entry: ClipboardEntry): Promise<number> {
     try {
       // 1. Compute content hash for deduplication
-      const contentHash: string = await this.encryptionService.hash(entry.content);
+      const rawContent: string = entry.rawContent;
+      const contentHash: string = await this.encryptionService.hash(rawContent);
 
       // 2. Check for duplicate via hash
       const existing: ClipboardEntry | null = await this.dao.findByHash(contentHash);
@@ -32,7 +33,7 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
       }
 
       // 4. New entry: encrypt content before storing
-      const encryptedData = await this.encryptionService.encrypt(entry.content);
+      const encryptedData = await this.encryptionService.encrypt(rawContent);
       entry.contentEncrypted = encryptedData.ciphertext;
       entry.iv = encryptedData.iv;
       entry.authTag = encryptedData.authTag;

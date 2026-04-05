@@ -63,6 +63,13 @@ export class ClipboardEntry {
   tags: CustomCategory[] = [];
 
   /**
+   * Transient field for passing raw content through to ClipboardRepositoryImpl.insert().
+   * NOT persisted to the database — the repo reads this, encrypts it, and clears it.
+   * This avoids double-encryption when the monitor sets content before insert.
+   */
+  rawContent: string = '';
+
+  /**
    * Returns true if this entry is protected from automatic pruning.
    * An entry is protected when it is either pinned or favorited.
    */
