@@ -35,6 +35,8 @@ export class ClipboardMonitorService {
   private encryptionService: EncryptionService;
   private systemPasteboard: pasteboard.SystemPasteboard;
   private isMonitoring: boolean = false;
+  private isPaused: boolean = false;
+  private continuousTaskActive: boolean = false;
 
   constructor(
     repo: IClipboardRepository,
@@ -66,6 +68,7 @@ export class ClipboardMonitorService {
     });
 
     this.isMonitoring = true;
+    this.isPaused = false;
     console.info(`${TAG} Clipboard monitoring started`);
   }
 
@@ -80,7 +83,48 @@ export class ClipboardMonitorService {
     this.systemPasteboard.off('update');
     await this.stopContinuousTask();
     this.isMonitoring = false;
+    this.isPaused = false;
     console.info(`${TAG} Clipboard monitoring stopped`);
+  }
+
+  /**
+   * Pauses clipboard monitoring by unregistering the pasteboard listener
+   * while keeping the ContinuousTask alive. This is the "privacy mode".
+   */
+  async pauseMonitoring(): Promise<void> {
+    if (!this.isMonitoring || this.isPaused) {
+      return;
+    }
+
+    this.systemPasteboard.off('update');
+    this.isPaused = true;
+    // Keep the continuous task active so we can resume without re-requesting
+    console.info(`${TAG} Clipboard monitoring paused (privacy mode)`);
+  }
+
+  /**
+   * Resumes clipboard monitoring by re-registering the pasteboard listener.
+   * The ContinuousTask should still be active from before pause.
+   */
+  async resumeMonitoring(): Promise<void> {
+    if (!this.isMonitoring || !this.isPaused) {
+      return;
+    }
+
+    // Re-register clipboard change listener
+    this.systemPasteboard.on('update', () => {
+      this.onClipboardUpdate();
+    });
+
+    this.isPaused = false;
+    console.info(`${TAG} Clipboard monitoring resumed`);
+  }
+
+  /**
+   * Returns whether monitoring is currently paused (privacy mode active).
+   */
+  getPaused(): boolean {
+    return this.isPaused;
   }
 
   /**
@@ -169,9 +213,13 @@ export class ClipboardMonitorService {
    * can keep running while the app is in the background.
    */
   private async startContinuousTask(): Promise<void> {
+    if (this.continuousTaskActive) {
+      return;
+    }
     try {
       const context = AppContext.getContext();
       backgroundTaskManager.startContinuousTask(context, 'dataTransfer', 'Clipboard monitoring');
+      this.continuousTaskActive = true;
       console.info(`${TAG} Continuous background task started`);
     } catch (err) {
       console.error(`${TAG} Failed to start continuous task: ${err}`);
@@ -182,9 +230,13 @@ export class ClipboardMonitorService {
    * Stops the BackgroundTaskManager continuous task.
    */
   private async stopContinuousTask(): Promise<void> {
+    if (!this.continuousTaskActive) {
+      return;
+    }
     try {
       const context = AppContext.getContext();
       backgroundTaskManager.stopContinuousTask(context);
+      this.continuousTaskActive = false;
       console.info(`${TAG} Continuous background task stopped`);
     } catch (err) {
       console.error(`${TAG} Failed to stop continuous task: ${err}`);

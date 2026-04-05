@@ -217,6 +217,22 @@ export class ClipboardDao {
     }
   }
 
+  async countFavorites(): Promise<number> {
+    try {
+      const resultSet = await this.store.querySql(
+        'SELECT COUNT(*) AS cnt FROM clipboard_entry WHERE is_favorite = 1'
+      );
+      let count: number = 0;
+      if (resultSet.goToFirstRow()) {
+        count = resultSet.getLong(0);
+      }
+      resultSet.close();
+      return count;
+    } catch (error) {
+      throw new Error(`Failed to count favorite clipboard entries: ${error}`);
+    }
+  }
+
   async pruneOldest(count: number): Promise<number> {
     try {
       const resultSet = await this.store.querySql(

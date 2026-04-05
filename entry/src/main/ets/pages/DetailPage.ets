@@ -1,19 +1,23 @@
 import { DetailViewModel } from '../viewmodel/DetailViewModel';
+import { CustomCategory } from '../model/CustomCategory';
+import { CategoryPickerDialog } from '../component/CategoryPickerDialog';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 
 /**
  * Detail page for viewing the full content of a clipboard entry.
- * Shows content, metadata, and provides action buttons for pin, favorite, and copy.
+ * Shows content, metadata, tags, and provides action buttons for pin, favorite, and copy.
  *
  * The viewModel should be constructed externally with the required
- * IClipboardRepository and EncryptionService dependencies and set
- * before the page appears.
+ * IClipboardRepository, EncryptionService, and ICategoryRepository
+ * dependencies and set before the page appears.
  */
 @Component
 export struct DetailPage {
   @State isCopied: boolean = false;
+  @State entryTags: CustomCategory[] = [];
   private viewModel: DetailViewModel | null = null;
   entryId: number = 0;
+  private categoryPickerController: CustomDialogController | null = null;
 
   /**
    * Set the ViewModel from outside (called by parent or navigation).
@@ -25,6 +29,13 @@ export struct DetailPage {
   aboutToAppear(): void {
     if (this.viewModel && this.entryId > 0) {
       this.viewModel.loadEntry(this.entryId);
+      this.loadTags();
+    }
+  }
+
+  private async loadTags(): Promise<void> {
+    if (this.viewModel && this.entryId > 0) {
+      this.entryTags = await this.viewModel.getTagsForEntry(this.entryId);
     }
   }
 
@@ -143,6 +154,66 @@ export struct DetailPage {
             .padding(ThemeTokens.SPACING_LG)
             .margin({ top: ThemeTokens.SPACING_MD })
           }
+
+          // Tags section
+          Column() {
+            Row() {
+              Text('标签')
+                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                .fontColor(ThemeTokens.TEXT_TERTIARY)
+                .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+
+              Blank()
+
+              Text('+ 添加')
+                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                .fontColor(ThemeTokens.PRIMARY)
+                .onClick(() => {
+                  this.showTagPicker();
+                })
+            }
+            .width('100%')
+            .margin({ bottom: ThemeTokens.SPACING_SM })
+
+            // Tag chips row
+            if (this.entryTags.length > 0) {
+              Flex({ wrap: FlexWrap.Wrap, space: { main: ThemeTokens.SPACING_XS, cross: ThemeTokens.SPACING_XS } }) {
+                ForEach(this.entryTags, (tag: CustomCategory) => {
+                  Row() {
+                    Text('')
+                      .width(6)
+                      .height(6)
+                      .borderRadius(3)
+                      .backgroundColor(tag.color || ThemeTokens.PRIMARY)
+                      .margin({ right: ThemeTokens.SPACING_XS })
+
+                    Text(tag.name)
+                      .fontSize(11)
+                      .fontColor(ThemeTokens.TEXT_PRIMARY)
+                  }
+                  .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                  .borderRadius(ThemeTokens.BORDER_RADIUS_SM)
+                  .backgroundColor(ThemeTokens.BACKGROUND)
+                  .border({ width: 1, color: ThemeTokens.DIVIDER })
+                  .gesture(
+                    LongPressGesture()
+                      .onAction(() => {
+                        this.onRemoveTag(tag.id);
+                      })
+                  )
+                }, (tag: CustomCategory) => `tag_${tag.id}`)
+              }
+            } else {
+              Text('暂无标签')
+                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                .fontColor(ThemeTokens.TEXT_TERTIARY)
+            }
+          }
+          .width('100%')
+          .padding(ThemeTokens.SPACING_LG)
+          .margin({ top: ThemeTokens.SPACING_MD })
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
         }
         .padding(ThemeTokens.SPACING_LG)
       }
@@ -170,6 +241,39 @@ export struct DetailPage {
     .width('100%')
     .height('100%')
     .backgroundColor(ThemeTokens.BACKGROUND)
+  }
+
+  private showTagPicker(): void {
+    if (!this.viewModel) {
+      return;
+    }
+    const allCategories: CustomCategory[] = this.viewModel.categories;
+    const appliedIds: number[] = this.entryTags.map((t: CustomCategory): number => t.id);
+
+    // Show the CategoryPickerDialog via a prompt-sheet approach.
+    // Since @CustomDialog requires a controller, we use AlertDialog as
+    // a lightweight fallback for tag selection here.
+    const tagNames: string = allCategories.map((c: CustomCategory): string => {
+      const isApplied: boolean = appliedIds.indexOf(c.id) >= 0;
+      return `${isApplied ? '[x] ' : '[ ] '}${c.name}`;
+    }).join('\n');
+
+    AlertDialog.show({
+      title: '选择标签',
+      message: tagNames || '还没有自定义标签\n请在设置中先创建标签',
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      buttons: [
+        { text: '关闭', color: ThemeTokens.TEXT_SECONDARY, action: () => {} }
+      ]
+    });
+  }
+
+  private async onRemoveTag(categoryId: number): Promise<void> {
+    if (this.viewModel && this.entryId > 0) {
+      await this.viewModel.removeTagFromEntry(this.entryId, categoryId);
+      this.entryTags = this.entryTags.filter((t: CustomCategory): boolean => t.id !== categoryId);
+    }
   }
 
   private getTypeColor(): string {

@@ -8,6 +8,7 @@ export interface IClipboardRepository {
   getFavorites(offset: number, limit: number): Promise<ClipboardEntry[]>;
   search(keyword: string, offset: number, limit: number): Promise<ClipboardEntry[]>;
   count(): Promise<number>;
+  countFavorites(): Promise<number>;
   findByHash(contentHash: string): Promise<ClipboardEntry | null>;
   touchTimestamp(id: number): Promise<void>;
   updatePin(id: number, pinned: boolean): Promise<void>;

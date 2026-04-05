@@ -104,6 +104,14 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
     }
   }
 
+  async countFavorites(): Promise<number> {
+    try {
+      return await this.dao.countFavorites();
+    } catch (error) {
+      throw new Error(`Failed to count favorite clipboard entries: ${error}`);
+    }
+  }
+
   async findByHash(contentHash: string): Promise<ClipboardEntry | null> {
     try {
       return await this.dao.findByHash(contentHash);

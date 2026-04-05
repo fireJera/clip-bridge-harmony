@@ -1,32 +1,45 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { ClipboardEntry } from '../model/ClipboardEntry';
+import { CustomCategory } from '../model/CustomCategory';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
+import { ICategoryRepository } from '../repository/CategoryRepository';
 import { EncryptionService } from '../service/EncryptionService';
 
 /**
  * ViewModel for the clipboard entry detail page.
  *
  * Manages loading a single entry, decrypting its content, and providing
- * actions such as copy-to-clipboard, pin toggle, favorite toggle, and delete.
+ * actions such as copy-to-clipboard, pin toggle, favorite toggle, delete,
+ * and custom tag management.
  *
  * Reactive state (@Trace):
  *   - entry: the currently loaded ClipboardEntry (null until loaded).
  *   - decryptedContent: the AES-256-GCM decrypted plain-text content.
  *   - isLoading: whether an async operation is in progress.
  *   - isCopied: transient flag set for 2 seconds after a successful copy.
+ *   - categories: all custom categories (for tag picker).
+ *   - entryTags: tags applied to the current entry.
  */
 @ObservedV2
 export class DetailViewModel {
   private repo: IClipboardRepository;
+  private categoryRepo: ICategoryRepository;
   private encryptionService: EncryptionService;
 
   @Trace entry: ClipboardEntry | null = null;
   @Trace decryptedContent: string = '';
   @Trace isLoading: boolean = false;
   @Trace isCopied: boolean = false;
+  @Trace categories: CustomCategory[] = [];
+  @Trace entryTags: CustomCategory[] = [];
 
-  constructor(repo: IClipboardRepository, encryptionService: EncryptionService) {
+  constructor(
+    repo: IClipboardRepository,
+    categoryRepo: ICategoryRepository,
+    encryptionService: EncryptionService
+  ) {
     this.repo = repo;
+    this.categoryRepo = categoryRepo;
     this.encryptionService = encryptionService;
   }
 
@@ -49,6 +62,9 @@ export class DetailViewModel {
         // Fallback to preview if no encrypted content (edge case)
         this.decryptedContent = this.entry.contentPreview;
       }
+      // Load categories and tags for this entry
+      await this.loadCategories();
+      await this.loadEntryTags(id);
     } catch (error) {
       console.error('[DetailViewModel] Failed to load entry: ' + JSON.stringify(error));
     } finally {
@@ -132,6 +148,76 @@ export class DetailViewModel {
     } catch (error) {
       console.error('[DetailViewModel] Failed to delete entry: ' + JSON.stringify(error));
       return false;
+    }
+  }
+
+  // ── Category / tag methods ──────────────────────────────────────────
+
+  /**
+   * Loads all custom categories (for the tag picker).
+   */
+  async loadCategories(): Promise<void> {
+    try {
+      this.categories = await this.categoryRepo.getAll();
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to load categories: ' + JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Loads the tags applied to a specific entry.
+   *
+   * @param entryId - The entry to load tags for.
+   */
+  async loadEntryTags(entryId: number): Promise<void> {
+    try {
+      this.entryTags = await this.categoryRepo.getTagsForEntry(entryId);
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to load entry tags: ' + JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Returns tags for a specific entry (used by DetailPage).
+   *
+   * @param entryId - The entry to get tags for.
+   */
+  async getTagsForEntry(entryId: number): Promise<CustomCategory[]> {
+    try {
+      return await this.categoryRepo.getTagsForEntry(entryId);
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to get tags for entry: ' + JSON.stringify(error));
+      return [];
+    }
+  }
+
+  /**
+   * Adds a custom tag to the current entry.
+   *
+   * @param entryId - The entry ID.
+   * @param categoryId - The category to tag with.
+   */
+  async addTagToEntry(entryId: number, categoryId: number): Promise<void> {
+    try {
+      await this.categoryRepo.addTag(entryId, categoryId);
+      await this.loadEntryTags(entryId);
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to add tag: ' + JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Removes a custom tag from the current entry.
+   *
+   * @param entryId - The entry ID.
+   * @param categoryId - The category to remove.
+   */
+  async removeTagFromEntry(entryId: number, categoryId: number): Promise<void> {
+    try {
+      await this.categoryRepo.removeTag(entryId, categoryId);
+      await this.loadEntryTags(entryId);
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to remove tag: ' + JSON.stringify(error));
     }
   }
 
