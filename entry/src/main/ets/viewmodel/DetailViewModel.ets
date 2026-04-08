@@ -4,6 +4,7 @@ import { CustomCategory } from '../model/CustomCategory';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ICategoryRepository } from '../repository/CategoryRepository';
 import { EncryptionService } from '../service/EncryptionService';
+import { AppContext } from '../common/utils/AppContext';
 
 /**
  * ViewModel for the clipboard entry detail page.
@@ -32,6 +33,10 @@ export class DetailViewModel {
   @Trace isCopied: boolean = false;
   @Trace categories: CustomCategory[] = [];
   @Trace entryTags: CustomCategory[] = [];
+  @Trace editedContent: string = '';      // Current text in the editor
+  @Trace isDirty: boolean = false;        // editedContent !== decryptedContent
+  @Trace isSaving: boolean = false;       // Save in progress
+  @Trace isNotFound: boolean = false;     // Entry was deleted externally
 
   constructor(
     repo: IClipboardRepository,
@@ -52,16 +57,23 @@ export class DetailViewModel {
     this.isLoading = true;
     try {
       this.entry = await this.repo.getById(id);
-      if (this.entry && this.entry.contentEncrypted.length > 0) {
+      if (this.entry === null) {
+        this.isNotFound = true;
+        return;
+      }
+      this.isNotFound = false;
+      if (this.entry.contentEncrypted.length > 0) {
         this.decryptedContent = await this.encryptionService.decrypt({
           ciphertext: this.entry.contentEncrypted,
           iv: this.entry.iv,
           authTag: this.entry.authTag
         });
-      } else if (this.entry) {
+      } else {
         // Fallback to preview if no encrypted content (edge case)
         this.decryptedContent = this.entry.contentPreview;
       }
+      this.editedContent = this.decryptedContent;
+      this.isDirty = false;
       // Load categories and tags for this entry
       await this.loadCategories();
       await this.loadEntryTags(id);
@@ -144,11 +156,72 @@ export class DetailViewModel {
     }
     try {
       await this.repo.deleteById(this.entry.id);
+      AppContext.notifyDataChanged();
       return true;
     } catch (error) {
       console.error('[DetailViewModel] Failed to delete entry: ' + JSON.stringify(error));
       return false;
     }
+  }
+
+  // ── Editing methods ──────────────────────────────────────────────────
+
+  /**
+   * Called when the user edits content in the text area.
+   * Updates the edited content and tracks dirty state.
+   *
+   * @param newText - The current text in the editor.
+   */
+  onContentEdited(newText: string): void {
+    this.editedContent = newText;
+    this.isDirty = (newText !== this.decryptedContent);
+  }
+
+  /**
+   * Saves the edited content back to the repository (re-encrypted).
+   * Refreshes the entry from the database after saving.
+   */
+  async saveContent(): Promise<void> {
+    if (this.entry === null || !this.isDirty) {
+      return;
+    }
+    this.isSaving = true;
+    try {
+      await this.repo.updateContent(this.entry.id, this.editedContent);
+      // Refresh the entry from the database
+      this.entry = await this.repo.getById(this.entry.id);
+      if (this.entry && this.entry.contentEncrypted.length > 0) {
+        this.decryptedContent = await this.encryptionService.decrypt({
+          ciphertext: this.entry.contentEncrypted,
+          iv: this.entry.iv,
+          authTag: this.entry.authTag
+        });
+      } else if (this.entry) {
+        this.decryptedContent = this.entry.contentPreview;
+      }
+      this.editedContent = this.decryptedContent;
+      this.isDirty = false;
+      AppContext.notifyDataChanged();
+    } catch (error) {
+      console.error('[DetailViewModel] Failed to save content: ' + JSON.stringify(error));
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  /**
+   * Reverts the editor content back to the last saved/decrypted content.
+   */
+  revertContent(): void {
+    this.editedContent = this.decryptedContent;
+    this.isDirty = false;
+  }
+
+  /**
+   * Returns whether the editor has unsaved changes.
+   */
+  isEntryDirty(): boolean {
+    return this.isDirty;
   }
 
   // ── Category / tag methods ──────────────────────────────────────────
