@@ -13,6 +13,7 @@ export interface IClipboardRepository {
   touchTimestamp(id: number): Promise<void>;
   updatePin(id: number, pinned: boolean): Promise<void>;
   updateFavorite(id: number, favorited: boolean): Promise<void>;
+  updateContent(id: number, newContent: string): Promise<void>;
   deleteById(id: number): Promise<void>;
   deleteByIds(ids: number[]): Promise<void>;
   deleteAll(): Promise<void>;
