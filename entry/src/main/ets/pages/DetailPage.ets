@@ -224,6 +224,8 @@ export struct DetailPage {
         .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
         .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
         .padding({ left: ThemeTokens.SPACING_XL, right: ThemeTokens.SPACING_XL })
+        .accessibilityText('返回')
+        .accessibilityDescription('点击返回上一页')
         .onClick(() => {
           this.onBack();
         })
@@ -301,6 +303,8 @@ export struct DetailPage {
         .width(ThemeTokens.TOUCH_TARGET_MIN)
         .height(ThemeTokens.TOUCH_TARGET_MIN)
         .textAlign(TextAlign.Center)
+        .accessibilityText('返回')
+        .accessibilityDescription('点击返回上一页')
         .onClick(() => {
           this.handleBack();
         })
@@ -320,6 +324,8 @@ export struct DetailPage {
         .width(ThemeTokens.TOUCH_TARGET_MIN)
         .height(ThemeTokens.TOUCH_TARGET_MIN)
         .textAlign(TextAlign.Center)
+        .accessibilityText(this.viewModel?.entry?.isPinned ? '取消固定' : '固定')
+        .accessibilityDescription('切换固定状态')
         .onClick(() => {
           if (this.viewModel) {
             this.viewModel.togglePin();
@@ -333,6 +339,8 @@ export struct DetailPage {
         .width(ThemeTokens.TOUCH_TARGET_MIN)
         .height(ThemeTokens.TOUCH_TARGET_MIN)
         .textAlign(TextAlign.Center)
+        .accessibilityText(this.viewModel?.entry?.isFavorite ? '取消收藏' : '收藏')
+        .accessibilityDescription('切换收藏状态')
         .onClick(() => {
           if (this.viewModel) {
             this.viewModel.toggleFavorite();
@@ -346,6 +354,8 @@ export struct DetailPage {
         .width(ThemeTokens.TOUCH_TARGET_MIN)
         .height(ThemeTokens.TOUCH_TARGET_MIN)
         .textAlign(TextAlign.Center)
+        .accessibilityText('删除')
+        .accessibilityDescription('删除该条目')
         .onClick(() => {
           this.handleDelete();
         })
@@ -364,7 +374,7 @@ export struct DetailPage {
       .backgroundColor(ThemeTokens.SURFACE)
       .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
       .width('100%')
-      .height(200)
+      .constraintSize({ minHeight: 200 })
       .padding(ThemeTokens.SPACING_LG)
       .copyOption(CopyOptions.LocalDevice)
       .onChange((value: string) => {
@@ -382,7 +392,7 @@ export struct DetailPage {
       .backgroundColor(ThemeTokens.SURFACE)
       .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
       .width('100%')
-      .height(200)
+      .constraintSize({ minHeight: 200 })
       .padding(ThemeTokens.SPACING_LG)
       .copyOption(CopyOptions.LocalDevice)
       .enabled(false)
@@ -534,6 +544,8 @@ export struct DetailPage {
           .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
           .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
           .enabled(!this.viewModel.isSaving && !this.isEditedContentEmpty())
+          .accessibilityText('保存')
+          .accessibilityDescription('保存修改后的内容')
           .onClick(() => {
             this.handleSave();
           })
@@ -547,6 +559,8 @@ export struct DetailPage {
           .fontSize(ThemeTokens.FONT_SIZE_BODY)
           .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
           .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
+          .accessibilityText('复制到剪贴板')
+          .accessibilityDescription('将内容复制到系统剪贴板')
           .onClick(() => {
             this.handleCopy();
           })
