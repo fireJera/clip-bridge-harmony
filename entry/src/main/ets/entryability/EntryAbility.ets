@@ -1,14 +1,17 @@
-import { UIAbility, AbilityConstant, Want } from '@kit.AbilityKit';
+import { UIAbility, AbilityConstant, Want, abilityAccessCtrl, Permissions } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { userAuth } from '@kit.UserAuthenticationKit';
 import { AppDatabase } from '../data/database/AppDatabase';
 import { ClipboardDao } from '../data/database/ClipboardDao';
 import { BlacklistDao } from '../data/database/BlacklistDao';
+import { CategoryDao } from '../data/database/CategoryDao';
 import { UserSettings } from '../data/preferences/UserSettings';
 import { AppContext } from '../common/utils/AppContext';
 import { EncryptionService } from '../service/EncryptionService';
 import { ClipboardRepositoryImpl } from '../repository/ClipboardRepositoryImpl';
+import { CategoryRepositoryImpl } from '../repository/CategoryRepositoryImpl';
+import { SettingsRepositoryImpl } from '../repository/SettingsRepositoryImpl';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ClipboardMonitorService } from '../service/ClipboardMonitorService';
 
@@ -21,53 +24,74 @@ export default class EntryAbility extends UIAbility {
   private settings: UserSettings | null = null;
 
   async onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): Promise<void> {
-    hilog.info(DOMAIN, TAG, 'onCreate');
+    hilog.info(DOMAIN, TAG, 'onCreate START');
 
     // 1. Store context for later use by services
     AppContext.setContext(this.context);
 
-    // 2. Initialize database
+    // 2. Request runtime permissions (READ_PASTEBOARD is user_grant)
+    try {
+      await this.requestPermissions();
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Permission request failed: %{public}s', JSON.stringify(error));
+    }
+
+    // 3. Initialize database
     try {
       this.db = await AppDatabase.getInstance(this.context);
-      hilog.info(DOMAIN, TAG, 'Database initialized successfully');
+      hilog.info(DOMAIN, TAG, 'Database initialized OK');
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'Failed to initialize database: %{public}s', JSON.stringify(error));
+      hilog.error(DOMAIN, TAG, 'Database init FAILED: %{public}s', JSON.stringify(error));
       return;
     }
 
-    // 3. Initialize preferences
+    // 4. Initialize preferences
     let userSettings: UserSettings;
     try {
       userSettings = await UserSettings.getInstance(this.context);
       this.settings = userSettings;
-      hilog.info(DOMAIN, TAG, 'UserSettings initialized successfully');
+      hilog.info(DOMAIN, TAG, 'UserSettings initialized OK');
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'Failed to initialize UserSettings: %{public}s', JSON.stringify(error));
+      hilog.error(DOMAIN, TAG, 'UserSettings init FAILED: %{public}s', JSON.stringify(error));
       return;
     }
 
-    // 4. Initialize EncryptionService singleton
+    // 5. Initialize EncryptionService singleton
     let encryptionService: EncryptionService;
     try {
       encryptionService = await EncryptionService.getInstance(this.context);
-      hilog.info(DOMAIN, TAG, 'EncryptionService initialized successfully');
+      hilog.info(DOMAIN, TAG, 'EncryptionService initialized OK');
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'Failed to initialize EncryptionService: %{public}s', JSON.stringify(error));
+      hilog.error(DOMAIN, TAG, 'EncryptionService init FAILED: %{public}s', JSON.stringify(error));
       return;
     }
 
-    // 5. Wire up the repository layer: DAO -> RepositoryImpl
+    // 6. Wire up the repository layer: DAO -> RepositoryImpl
     const dao: ClipboardDao = new ClipboardDao(this.db.getStore());
     const blacklistDao: BlacklistDao = new BlacklistDao(this.db.getStore());
+    const categoryDao: CategoryDao = new CategoryDao(this.db.getStore());
     const repo: IClipboardRepository = new ClipboardRepositoryImpl(dao, encryptionService, userSettings);
+    const categoryRepo = new CategoryRepositoryImpl(categoryDao);
 
-    // 6. Create and start the clipboard monitor service
+    // Store repos in AppContext for UI access
+    AppContext.setClipboardRepo(repo);
+    AppContext.setCategoryRepo(categoryRepo);
+    const settingsRepo = new SettingsRepositoryImpl(userSettings);
+    AppContext.setSettingsRepo(settingsRepo);
+    AppContext.setBlacklistDao(blacklistDao);
+    AppContext.setEncryptionService(encryptionService);
+    hilog.info(DOMAIN, TAG, 'Repository layer created OK');
+
+    // 7. Create and start the clipboard monitor service
     try {
       this.monitorService = new ClipboardMonitorService(repo, encryptionService, blacklistDao);
       await this.monitorService.start();
-      hilog.info(DOMAIN, TAG, 'ClipboardMonitorService started successfully');
+      hilog.info(DOMAIN, TAG, 'ClipboardMonitorService started OK');
+      // Check current clipboard immediately (onForeground already fired before this)
+      await this.monitorService.checkCurrentClipboard();
+      hilog.info(DOMAIN, TAG, 'Initial clipboard check done');
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'Failed to start ClipboardMonitorService: %{public}s', JSON.stringify(error));
+      hilog.error(DOMAIN, TAG, 'ClipboardMonitorService FAILED: %{public}s', JSON.stringify(error));
     }
   }
 
@@ -106,7 +130,38 @@ export default class EntryAbility extends UIAbility {
 
   onForeground(): void {
     hilog.info(DOMAIN, TAG, 'onForeground');
+    // Check current clipboard content for copies that happened while app was in background
+    if (this.monitorService) {
+      this.monitorService.checkCurrentClipboard().then((): void => {
+        hilog.info(DOMAIN, TAG, 'Current clipboard checked');
+      }).catch((err: Error): void => {
+        hilog.error(DOMAIN, TAG, 'Failed to check clipboard: %{public}s', JSON.stringify(err));
+      });
+    }
     this.promptBiometricAuth();
+  }
+
+  /**
+   * Requests runtime permissions needed by the app.
+   * READ_PASTEBOARD is a user_grant permission that must be approved by the user.
+   */
+  private async requestPermissions(): Promise<void> {
+    try {
+      const atManager = abilityAccessCtrl.createAtManager();
+      const permissions: Permissions[] = [
+        'ohos.permission.READ_PASTEBOARD'
+      ];
+      const result = await atManager.requestPermissionsFromUser(this.context, permissions);
+      for (let i = 0; i < result.authResults.length; i++) {
+        if (result.authResults[i] === 0) {
+          hilog.info(DOMAIN, TAG, 'Permission %{public}s granted', permissions[i]);
+        } else {
+          hilog.warn(DOMAIN, TAG, 'Permission %{public}s denied', permissions[i]);
+        }
+      }
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Request permissions failed: %{public}s', JSON.stringify(error));
+    }
   }
 
   /**
@@ -128,18 +183,14 @@ export default class EntryAbility extends UIAbility {
       // Determine available auth types, falling back to PIN if biometric unavailable
       const authTypes: userAuth.UserAuthType[] = [];
       try {
-        if (userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT,
-          userAuth.AuthTrustLevel.ATL1) === userAuth.UserAuthResult.SUCCESS) {
-          authTypes.push(userAuth.UserAuthType.FINGERPRINT);
-        }
+        userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT, userAuth.AuthTrustLevel.ATL1);
+        authTypes.push(userAuth.UserAuthType.FINGERPRINT);
       } catch (e) {
         hilog.warn(DOMAIN, TAG, 'Fingerprint not available: %{public}s', JSON.stringify(e));
       }
       try {
-        if (userAuth.getAvailableStatus(userAuth.UserAuthType.FACE,
-          userAuth.AuthTrustLevel.ATL1) === userAuth.UserAuthResult.SUCCESS) {
-          authTypes.push(userAuth.UserAuthType.FACE);
-        }
+        userAuth.getAvailableStatus(userAuth.UserAuthType.FACE, userAuth.AuthTrustLevel.ATL1);
+        authTypes.push(userAuth.UserAuthType.FACE);
       } catch (e) {
         hilog.warn(DOMAIN, TAG, 'Face not available: %{public}s', JSON.stringify(e));
       }
@@ -151,20 +202,19 @@ export default class EntryAbility extends UIAbility {
         {
           challenge: new Uint8Array(32),
           authType: authTypes,
-          trustLevel: userAuth.AuthTrustLevel.ATL1
+          authTrustLevel: userAuth.AuthTrustLevel.ATL1
         },
-        {
-          windowVisibility: userAuth.WindowVisibilityType.STATUS_BAR_NAVIGATION_BAR_VISIBLE
-        }
+        { title: '请验证身份' }
       );
 
-      authInstance.on('result', (result: userAuth.UserAuthResult) => {
-        if (result === userAuth.UserAuthResult.SUCCESS) {
-          hilog.info(DOMAIN, TAG, 'Biometric auth succeeded');
-        } else {
-          hilog.warn(DOMAIN, TAG, 'Biometric auth failed (result=%{public}d), retrying', result);
-          // Re-prompt after failure to keep the app locked
-          this.promptBiometricAuth();
+      authInstance.on('result', {
+        onResult: (result: userAuth.UserAuthResult) => {
+          if (result.result === userAuth.UserAuthResultCode.SUCCESS) {
+            hilog.info(DOMAIN, TAG, 'Biometric auth succeeded');
+          } else {
+            hilog.warn(DOMAIN, TAG, 'Biometric auth failed, retrying');
+            this.promptBiometricAuth();
+          }
         }
       });
 

@@ -2,6 +2,7 @@ import { DetailViewModel } from '../viewmodel/DetailViewModel';
 import { CustomCategory } from '../model/CustomCategory';
 import { CategoryPickerDialog } from '../component/CategoryPickerDialog';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
+import { AppContext } from '../common/utils/AppContext';
 
 /**
  * Detail page for viewing the full content of a clipboard entry.
@@ -17,6 +18,7 @@ export struct DetailPage {
   @State entryTags: CustomCategory[] = [];
   private viewModel: DetailViewModel | null = null;
   entryId: number = 0;
+  onBack: () => void = () => {};
   private categoryPickerController: CustomDialogController | null = null;
 
   /**
@@ -27,6 +29,15 @@ export struct DetailPage {
   }
 
   aboutToAppear(): void {
+    // Build ViewModel from AppContext dependencies
+    const clipRepo = AppContext.getClipboardRepo();
+    const catRepo = AppContext.getCategoryRepo();
+    const encryptionService = AppContext.getEncryptionService();
+
+    if (clipRepo && catRepo && encryptionService) {
+      this.viewModel = new DetailViewModel(clipRepo, catRepo, encryptionService);
+    }
+
     if (this.viewModel && this.entryId > 0) {
       this.viewModel.loadEntry(this.entryId);
       this.loadTags();
@@ -51,8 +62,7 @@ export struct DetailPage {
           .height(ThemeTokens.TOUCH_TARGET_MIN)
           .textAlign(TextAlign.Center)
           .onClick(() => {
-            // Navigate back - will be implemented with NavRouter
-            console.info('Back pressed');
+            this.onBack();
           })
 
         // Title

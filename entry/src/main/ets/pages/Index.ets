@@ -1,55 +1,64 @@
 import { HistoryPage } from './HistoryPage';
 import { FavoritesPage } from './FavoritesPage';
+import { SettingsPage } from './SettingsPage';
+import { DetailPage } from './DetailPage';
+import { DetailViewModel } from '../viewmodel/DetailViewModel';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
+import { AppContext } from '../common/utils/AppContext';
+
+/**
+ * Navigation parameter interface for DetailPage.
+ * Passed via navPathStack.pushPath().
+ */
+interface DetailPageParams {
+  entryId: number;
+}
 
 @Entry
 @Component
 struct Index {
   @State currentIndex: number = 0;
-  @State favoriteCount: number = 0;
-
-  build() {
-    Tabs({ index: this.currentIndex }) {
-      TabContent() {
-        HistoryPage()
-      }
-      .tabBar('\u5386\u53F2')
-
-      TabContent() {
-        FavoritesPage()
-      }
-      .tabBar(this.FavoritesTabBar())
-
-      TabContent() {
-        // SettingsPage placeholder
-        Column() {
-          Text('\u8BBE\u7F6E')
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_TERTIARY)
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      }
-      .tabBar('\u8BBE\u7F6E')
-    }
-    .width('100%')
-    .height('100%')
-    .barPosition(BarPosition.End)
-    .barMode(BarMode.Fixed)
-    .onChange((index: number) => {
-      this.currentIndex = index;
-    })
-  }
+  @Provide('navPathStack') navPathStack: NavPathStack = new NavPathStack();
 
   @Builder
-  FavoritesTabBar() {
-    Column() {
-      Badge({ count: this.favoriteCount, maxCount: 99 }) {
-        Text('\u6536\u85CF')
-          .fontSize(14)
-          .fontColor(this.currentIndex === 1 ? ThemeTokens.PRIMARY : ThemeTokens.TEXT_TERTIARY)
-      }
+  PageMap(name: string, param: Object) {
+    if (name === 'DetailPage') {
+      DetailPage({
+        entryId: (param as DetailPageParams).entryId,
+        onBack: () => {
+          this.navPathStack.pop();
+        }
+      })
     }
+  }
+
+  build() {
+    Navigation(this.navPathStack) {
+      Tabs({ index: this.currentIndex }) {
+        TabContent() {
+          HistoryPage({ navPathStack: this.navPathStack })
+        }
+        .tabBar('历史')
+
+        TabContent() {
+          FavoritesPage({ navPathStack: this.navPathStack })
+        }
+        .tabBar('收藏')
+
+        TabContent() {
+          SettingsPage()
+        }
+        .tabBar('设置')
+      }
+      .width('100%')
+      .height('100%')
+      .barPosition(BarPosition.End)
+      .barMode(BarMode.Fixed)
+      .onChange((index: number) => {
+        this.currentIndex = index;
+      })
+    }
+    .navDestination(this.PageMap)
+    .mode(NavigationMode.Stack)
   }
 }
