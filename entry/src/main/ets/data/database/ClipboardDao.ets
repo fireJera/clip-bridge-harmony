@@ -2,6 +2,19 @@ import { relationalStore } from '@kit.ArkData';
 import { ClipboardEntry } from '../../model/ClipboardEntry';
 
 /**
+ * Data class for updating content-related fields of a clipboard entry.
+ */
+export class ContentUpdateData {
+  contentHash: string = '';
+  contentEncrypted: Uint8Array = new Uint8Array(0);
+  contentPreview: string = '';
+  contentSize: number = 0;
+  iv: Uint8Array = new Uint8Array(0);
+  authTag: Uint8Array = new Uint8Array(0);
+  updatedAt: string = '';
+}
+
+/**
  * Data Access Object for clipboard_entry table.
  * Provides all CRUD operations and query methods for clipboard history management.
  */
@@ -182,6 +195,25 @@ export class ClipboardDao {
       await this.store.update(valueBucket, predicates);
     } catch (error) {
       throw new Error(`Failed to update favorite status for entry ${id}: ${error}`);
+    }
+  }
+
+  async updateContent(id: number, data: ContentUpdateData): Promise<void> {
+    try {
+      const valueBucket: relationalStore.ValuesBucket = {
+        'content_hash': data.contentHash,
+        'content_encrypted': data.contentEncrypted,
+        'content_preview': data.contentPreview,
+        'content_size': data.contentSize,
+        'iv': data.iv,
+        'auth_tag': data.authTag,
+        'updated_at': data.updatedAt
+      };
+      const predicates = new relationalStore.RdbPredicates('clipboard_entry');
+      predicates.equalTo('id', id);
+      await this.store.update(valueBucket, predicates);
+    } catch (error) {
+      throw new Error(`Failed to update content for entry ${id}: ${error}`);
     }
   }
 
