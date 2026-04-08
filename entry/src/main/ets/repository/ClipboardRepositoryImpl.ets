@@ -1,6 +1,6 @@
 import { IClipboardRepository } from './ClipboardRepository';
 import { ClipboardEntry } from '../model/ClipboardEntry';
-import { ClipboardDao } from '../data/database/ClipboardDao';
+import { ClipboardDao, ContentUpdateData } from '../data/database/ClipboardDao';
 import { EncryptionService } from '../service/EncryptionService';
 import { UserSettings } from '../data/preferences/UserSettings';
 import { AppConstants } from '../common/constants/AppConstants';
@@ -141,6 +141,31 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
       await this.dao.updateFavorite(id, favorited);
     } catch (error) {
       throw new Error(`Failed to update favorite status for entry ${id}: ${error}`);
+    }
+  }
+
+  async updateContent(id: number, newContent: string): Promise<void> {
+    try {
+      // 1. Hash new content for deduplication
+      const contentHash: string = await this.encryptionService.hash(newContent);
+
+      // 2. Encrypt new content
+      const encryptedData = await this.encryptionService.encrypt(newContent);
+
+      // 3. Build update data
+      const data: ContentUpdateData = new ContentUpdateData();
+      data.contentHash = contentHash;
+      data.contentEncrypted = encryptedData.ciphertext;
+      data.contentPreview = newContent.substring(0, AppConstants.CONTENT_PREVIEW_LENGTH);
+      data.contentSize = new TextEncoder().encode(newContent).length;
+      data.iv = encryptedData.iv;
+      data.authTag = encryptedData.authTag;
+      data.updatedAt = new Date().toISOString();
+
+      // 4. Persist via DAO
+      await this.dao.updateContent(id, data);
+    } catch (error) {
+      throw new Error(`Failed to update content for entry ${id}: ${error}`);
     }
   }
 
