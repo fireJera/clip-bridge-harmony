@@ -121,6 +121,7 @@ export class DetailViewModel {
     try {
       this.entry.isPinned = !this.entry.isPinned;
       await this.repo.updatePin(this.entry.id, this.entry.isPinned);
+      AppContext.notifyDataChanged();
     } catch (error) {
       // Revert on failure
       this.entry.isPinned = !this.entry.isPinned;
@@ -138,6 +139,7 @@ export class DetailViewModel {
     try {
       this.entry.isFavorite = !this.entry.isFavorite;
       await this.repo.updateFavorite(this.entry.id, this.entry.isFavorite);
+      AppContext.notifyDataChanged();
     } catch (error) {
       // Revert on failure
       this.entry.isFavorite = !this.entry.isFavorite;

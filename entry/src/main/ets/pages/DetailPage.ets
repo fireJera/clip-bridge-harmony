@@ -2,6 +2,7 @@ import { DetailViewModel } from '../viewmodel/DetailViewModel';
 import { CustomCategory } from '../model/CustomCategory';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 import { AppContext } from '../common/utils/AppContext';
+import { promptAction } from '@kit.ArkUI';
 
 /**
  * Detail page for viewing, editing, and managing a clipboard entry.
@@ -18,7 +19,7 @@ import { AppContext } from '../common/utils/AppContext';
 @Component
 export struct DetailPage {
   @State entryTags: CustomCategory[] = [];
-  private viewModel: DetailViewModel | null = null;
+  @State viewModel: DetailViewModel | null = null;
   entryId: number = 0;
   onBack: () => void = () => {};
 
@@ -130,17 +131,9 @@ export struct DetailPage {
     await this.viewModel.saveContent();
     if (!this.viewModel.isDirty) {
       // Save succeeded — show toast
-      AlertDialog.show({
+      promptAction.showToast({
         message: '保存成功',
-        autoCancel: true,
-        alignment: DialogAlignment.Center,
-        buttons: [
-          {
-            text: '确定',
-            color: ThemeTokens.PRIMARY,
-            action: () => {}
-          }
-        ]
+        duration: 1500
       });
     }
   }

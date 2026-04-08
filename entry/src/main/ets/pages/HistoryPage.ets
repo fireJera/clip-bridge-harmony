@@ -32,7 +32,7 @@ export struct HistoryPage {
   @State selectedIds: Set<number> = new Set();
   private viewModel: HistoryViewModel | null = null;
   private skipNextRefresh: boolean = false;
-  navPathStack: NavPathStack | null = null;
+  @Consume('navPathStack') navPathStack: NavPathStack;
 
   private refreshHandler: () => void = () => {
     if (this.skipNextRefresh) {
@@ -277,13 +277,10 @@ export struct HistoryPage {
   }
 
   private onItemClick(entry: ClipboardEntry): void {
-    console.info('Item clicked: ' + entry.id);
-    if (this.navPathStack) {
-      this.navPathStack.pushPath({
-        name: 'DetailPage',
-        param: { entryId: entry.id }
-      });
-    }
+    this.navPathStack.pushPath({
+      name: 'DetailPage',
+      param: { entryId: entry.id }
+    });
   }
 
   private onItemLongPress(entry: ClipboardEntry): void {

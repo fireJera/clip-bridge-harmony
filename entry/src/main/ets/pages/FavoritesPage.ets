@@ -20,7 +20,7 @@ export struct FavoritesPage {
   @State searchKeyword: string = '';
   @State entries: ClipboardEntry[] = [];
   private viewModel: FavoritesViewModel | null = null;
-  navPathStack: NavPathStack | null = null;
+  @Consume('navPathStack') navPathStack: NavPathStack;
 
   private refreshHandler: () => void = () => {
     hilog.info(0x0000, '[FavoritesPage]', 'refresh triggered by data change');
@@ -151,13 +151,10 @@ export struct FavoritesPage {
   }
 
   private onItemClick(entry: ClipboardEntry): void {
-    console.info('[FavoritesPage] Item clicked: ' + entry.id);
-    if (this.navPathStack) {
-      this.navPathStack.pushPath({
-        name: 'DetailPage',
-        param: { entryId: entry.id }
-      });
-    }
+    this.navPathStack.pushPath({
+      name: 'DetailPage',
+      param: { entryId: entry.id }
+    });
   }
 
   private onItemLongPress(entry: ClipboardEntry): void {

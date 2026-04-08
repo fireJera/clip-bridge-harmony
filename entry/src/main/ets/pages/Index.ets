@@ -36,12 +36,12 @@ struct Index {
     Navigation(this.navPathStack) {
       Tabs({ index: this.currentIndex }) {
         TabContent() {
-          HistoryPage({ navPathStack: this.navPathStack })
+          HistoryPage()
         }
         .tabBar('历史')
 
         TabContent() {
-          FavoritesPage({ navPathStack: this.navPathStack })
+          FavoritesPage()
         }
         .tabBar('收藏')
 
