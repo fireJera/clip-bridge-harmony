@@ -476,7 +476,7 @@ export struct DetailPage {
       .margin({ bottom: ThemeTokens.SPACING_SM })
 
       if (this.viewModel!.entryTags.length > 0) {
-        Flex({ wrap: FlexWrap.Wrap, space: { main: LengthMetrics.vp(ThemeTokens.SPACING_XS), cross: LengthMetrics.vp(ThemeTokens.SPACING_XS) } }) {
+        Flex({ wrap: FlexWrap.Wrap, space: { main: `${ThemeTokens.SPACING_XS}vp`, cross: `${ThemeTokens.SPACING_XS}vp` } }) {
           ForEach(this.viewModel!.entryTags, (tag: CustomCategory) => {
             Row() {
               Text('')
