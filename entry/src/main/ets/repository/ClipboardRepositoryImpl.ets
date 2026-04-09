@@ -3,6 +3,7 @@ import { ClipboardEntry } from '../model/ClipboardEntry';
 import { ClipboardDao, ContentUpdateData } from '../data/database/ClipboardDao';
 import { EncryptionService } from '../service/EncryptionService';
 import { UserSettings } from '../data/preferences/UserSettings';
+import { util } from '@kit.ArkTS';
 import { AppConstants } from '../common/constants/AppConstants';
 
 const TAG: string = '[ClipboardRepositoryImpl]';
@@ -157,7 +158,7 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
       data.contentHash = contentHash;
       data.contentEncrypted = encryptedData.ciphertext;
       data.contentPreview = newContent.substring(0, AppConstants.CONTENT_PREVIEW_LENGTH);
-      data.contentSize = new TextEncoder().encode(newContent).length;
+      data.contentSize = new util.TextEncoder().encode(newContent).byteLength;
       data.iv = encryptedData.iv;
       data.authTag = encryptedData.authTag;
       data.updatedAt = new Date().toISOString();

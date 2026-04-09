@@ -19,7 +19,7 @@ import { promptAction } from '@kit.ArkUI';
 @Component
 export struct DetailPage {
   @State entryTags: CustomCategory[] = [];
-  @State viewModel: DetailViewModel | null = null;
+  private viewModel: DetailViewModel | null = null;
   entryId: number = 0;
   onBack: () => void = () => {};
 
@@ -78,13 +78,11 @@ export struct DetailPage {
         alignment: DialogAlignment.Center,
         buttons: [
           {
-            text: '继续编辑',
-            color: ThemeTokens.PRIMARY,
+            value: '继续编辑',
             action: () => {}
           },
           {
-            text: '放弃',
-            color: ThemeTokens.ERROR,
+            value: '放弃',
             action: () => {
               this.onBack();
             }
@@ -104,13 +102,11 @@ export struct DetailPage {
       alignment: DialogAlignment.Center,
       buttons: [
         {
-          text: '取消',
-          color: ThemeTokens.TEXT_SECONDARY,
+          value: '取消',
           action: () => {}
         },
         {
-          text: '删除',
-          color: ThemeTokens.ERROR,
+          value: '删除',
           action: async () => {
             if (this.viewModel) {
               const deleted = await this.viewModel.deleteEntry();
@@ -162,7 +158,7 @@ export struct DetailPage {
       autoCancel: true,
       alignment: DialogAlignment.Center,
       buttons: [
-        { text: '关闭', color: ThemeTokens.TEXT_SECONDARY, action: () => {} }
+        { value: '关闭', action: () => {} }
       ]
     });
   }
@@ -480,7 +476,7 @@ export struct DetailPage {
       .margin({ bottom: ThemeTokens.SPACING_SM })
 
       if (this.viewModel!.entryTags.length > 0) {
-        Flex({ wrap: FlexWrap.Wrap, space: { main: ThemeTokens.SPACING_XS, cross: ThemeTokens.SPACING_XS } }) {
+        Flex({ wrap: FlexWrap.Wrap, space: { main: LengthMetrics.vp(ThemeTokens.SPACING_XS), cross: LengthMetrics.vp(ThemeTokens.SPACING_XS) } }) {
           ForEach(this.viewModel!.entryTags, (tag: CustomCategory) => {
             Row() {
               Text('')

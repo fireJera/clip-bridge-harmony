@@ -151,9 +151,10 @@ export struct FavoritesPage {
   }
 
   private onItemClick(entry: ClipboardEntry): void {
+    const params: Record<string, Object> = { 'entryId': entry.id };
     this.navPathStack.pushPath({
       name: 'DetailPage',
-      param: { entryId: entry.id }
+      param: params
     });
   }
 
