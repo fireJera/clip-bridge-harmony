@@ -60,5 +60,6 @@ struct Index {
     }
     .navDestination(this.PageMap)
     .mode(NavigationMode.Stack)
+    .navBarHidden(true)
   }
 }
