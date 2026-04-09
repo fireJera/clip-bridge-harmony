@@ -2,7 +2,7 @@ import { DetailViewModel } from '../viewmodel/DetailViewModel';
 import { CustomCategory } from '../model/CustomCategory';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 import { AppContext } from '../common/utils/AppContext';
-import { promptAction } from '@kit.ArkUI';
+import { promptAction, LengthMetrics } from '@kit.ArkUI';
 
 /**
  * Detail page for viewing, editing, and managing a clipboard entry.
@@ -476,7 +476,7 @@ export struct DetailPage {
       .margin({ bottom: ThemeTokens.SPACING_SM })
 
       if (this.viewModel!.entryTags.length > 0) {
-        Flex({ wrap: FlexWrap.Wrap, space: { main: `${ThemeTokens.SPACING_XS}vp`, cross: `${ThemeTokens.SPACING_XS}vp` } }) {
+        Flex({ wrap: FlexWrap.Wrap, space: { main: LengthMetrics.vp(ThemeTokens.SPACING_XS), cross: LengthMetrics.vp(ThemeTokens.SPACING_XS) } }) {
           ForEach(this.viewModel!.entryTags, (tag: CustomCategory) => {
             Row() {
               Text('')
