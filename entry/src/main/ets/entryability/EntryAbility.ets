@@ -4,7 +4,6 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { userAuth } from '@kit.UserAuthenticationKit';
 import { AppDatabase } from '../data/database/AppDatabase';
 import { ClipboardDao } from '../data/database/ClipboardDao';
-import { BlacklistDao } from '../data/database/BlacklistDao';
 import { CategoryDao } from '../data/database/CategoryDao';
 import { UserSettings } from '../data/preferences/UserSettings';
 import { AppContext } from '../common/utils/AppContext';
@@ -69,7 +68,6 @@ export default class EntryAbility extends UIAbility {
 
     // 6. Wire up the repository layer: DAO -> RepositoryImpl
     const dao: ClipboardDao = new ClipboardDao(this.db.getStore());
-    const blacklistDao: BlacklistDao = new BlacklistDao(this.db.getStore());
     const categoryDao: CategoryDao = new CategoryDao(this.db.getStore());
     const imageStorageService = new ImageStorageService(this.context.filesDir);
     AppContext.setImageStorageService(imageStorageService);
@@ -81,21 +79,32 @@ export default class EntryAbility extends UIAbility {
     AppContext.setCategoryRepo(categoryRepo);
     const settingsRepo = new SettingsRepositoryImpl(userSettings);
     AppContext.setSettingsRepo(settingsRepo);
-    AppContext.setBlacklistDao(blacklistDao);
     AppContext.setEncryptionService(encryptionService);
     hilog.info(DOMAIN, TAG, 'Repository layer created OK');
 
     // 7. Create and start the clipboard monitor service
     try {
-      this.monitorService = new ClipboardMonitorService(repo, encryptionService, blacklistDao, imageStorageService);
+      this.monitorService = new ClipboardMonitorService(repo, encryptionService, imageStorageService);
+      AppContext.setMonitorService(this.monitorService);
       await this.monitorService.start();
       hilog.info(DOMAIN, TAG, 'ClipboardMonitorService started OK');
-      // Check current clipboard immediately (onForeground already fired before this)
-      await this.monitorService.checkCurrentClipboard();
-      hilog.info(DOMAIN, TAG, 'Initial clipboard check done');
+
+      // Respect persisted privacy mode: pause monitoring if auto-record is off
+      const isPrivacyMode: boolean = await userSettings.isPrivacyMode();
+      if (isPrivacyMode) {
+        await this.monitorService.pauseMonitoring();
+        hilog.info(DOMAIN, TAG, 'Privacy mode ON — monitoring paused on startup');
+      } else {
+        // Check current clipboard immediately (onForeground already fired before this)
+        await this.monitorService.checkCurrentClipboard();
+        hilog.info(DOMAIN, TAG, 'Initial clipboard check done');
+      }
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'ClipboardMonitorService FAILED: %{public}s', JSON.stringify(error));
     }
+
+    // 8. Prompt biometric auth on cold start (onForeground fires before async onCreate finishes)
+    this.promptBiometricAuth();
   }
 
   onDestroy(): void {
@@ -134,7 +143,7 @@ export default class EntryAbility extends UIAbility {
   onForeground(): void {
     hilog.info(DOMAIN, TAG, 'onForeground');
     // Check current clipboard content for copies that happened while app was in background
-    if (this.monitorService) {
+    if (this.monitorService && !this.monitorService.getPaused()) {
       this.monitorService.checkCurrentClipboard().then((): void => {
         hilog.info(DOMAIN, TAG, 'Current clipboard checked');
       }).catch((err: Error): void => {
@@ -214,13 +223,19 @@ export default class EntryAbility extends UIAbility {
         onResult: (result: userAuth.UserAuthResult) => {
           if (result.result === userAuth.UserAuthResultCode.SUCCESS) {
             hilog.info(DOMAIN, TAG, 'Biometric auth succeeded');
+            AppContext.setAuthLocked(false);
+            AppContext.setAuthRetryAction(null);
           } else {
-            hilog.warn(DOMAIN, TAG, 'Biometric auth failed, retrying');
-            this.promptBiometricAuth();
+            hilog.warn(DOMAIN, TAG, 'Biometric auth failed or cancelled');
+            // Keep locked, user can tap the unlock button on the overlay to retry
           }
         }
       });
 
+      AppContext.setAuthLocked(true);
+      AppContext.setAuthRetryAction(() => {
+        this.promptBiometricAuth();
+      });
       authInstance.start();
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Biometric auth error: %{public}s', JSON.stringify(error));

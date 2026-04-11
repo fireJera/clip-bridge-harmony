@@ -48,10 +48,10 @@ export class ThemeTokens {
 
   // Bottom Navigation Bar
   static readonly NAV_HEIGHT: number = 56;
-  static readonly NAV_ICON_SIZE: number = 24;
+  static readonly NAV_ICON_SIZE: number = 20;
   static readonly NAV_LABEL_SIZE: number = 12;
-  static readonly NAV_ACTIVE_COLOR: string = '#007DFF';
-  static readonly NAV_INACTIVE_COLOR: string = '#999999';
+  static readonly NAV_ACTIVE_COLOR: string = '#0059B9';
+  static readonly NAV_INACTIVE_COLOR: string = '#44474E';
 
   // Card design
   static readonly CARD_RADIUS: number = 16;

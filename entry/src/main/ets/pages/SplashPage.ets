@@ -3,6 +3,7 @@
  * Shows logo, name "鹊桥", and slogan.
  * Auto-dismisses after 800ms via onFinished callback.
  */
+@Preview
 @Component
 export struct SplashPage {
   onFinished: () => void = () => {};

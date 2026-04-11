@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.cer",
+          "certpath": "C:\\Users\\r9132\\.ohos\\config\\default_clip-bridge-harmony_61VdJBPnwaYM1RpgLsFXGHu0phjbA2nvmVxb6ixDv2o=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001A02A7C878A267C3015F99D42D7C8487AB65621A3FD06636FC290BD8475C5D92A5F5B4E3455982",
-          "profile": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.p7b",
+          "keyPassword": "0000001B234AE2C9B54CDAA567A0D182ADD47A0AF2E4B31A3E6ACF633796B4DD76472AAB61B0739EE04E92",
+          "profile": "C:\\Users\\r9132\\.ohos\\config\\default_clip-bridge-harmony_61VdJBPnwaYM1RpgLsFXGHu0phjbA2nvmVxb6ixDv2o=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.p12",
-          "storePassword": "0000001A7507A819C592CD4B0006738B5C5B73FD6C7F62E48316B942C907F80EAC5CB03AF7B9195B9ABB"
+          "storeFile": "C:\\Users\\r9132\\.ohos\\config\\default_clip-bridge-harmony_61VdJBPnwaYM1RpgLsFXGHu0phjbA2nvmVxb6ixDv2o=.p12",
+          "storePassword": "0000001B9B38A3DEE81CD144E6D0AA164D7B203E77A9A0269439D8E65818AB531196CF4D068C654399561B"
         }
       }
     ],
@@ -21,6 +21,7 @@
         "signingConfig": "default",
         "compatibleSdkVersion": "5.0.0(12)",
         "runtimeOS": "HarmonyOS",
+        "targetSdkVersion": "5.0.5(17)"
       }
     ],
     "buildModeSet": [

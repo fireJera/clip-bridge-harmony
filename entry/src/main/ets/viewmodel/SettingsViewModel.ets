@@ -1,10 +1,9 @@
 import { ISettingsRepository } from '../repository/SettingsRepository';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ICategoryRepository } from '../repository/CategoryRepository';
-import { BlacklistDao } from '../data/database/BlacklistDao';
-import { AppBlacklistEntry } from '../model/AppBlacklistEntry';
 import { CustomCategory } from '../model/CustomCategory';
 import { AppConstants } from '../common/constants/AppConstants';
+import { AppContext } from '../common/utils/AppContext';
 
 /**
  * ViewModel for the Settings page.
@@ -18,12 +17,10 @@ export class SettingsViewModel {
   private settingsRepo: ISettingsRepository;
   private clipboardRepo: IClipboardRepository;
   private categoryRepo: ICategoryRepository;
-  private blacklistDao: BlacklistDao;
 
   @Trace historyLimit: number = AppConstants.DEFAULT_HISTORY_LIMIT;
   @Trace isPrivacyMode: boolean = false;
   @Trace isBiometricEnabled: boolean = false;
-  @Trace blacklist: AppBlacklistEntry[] = [];
   @Trace categories: CustomCategory[] = [];
   @Trace appVersion: string = '1.0.0';
   @Trace isLoading: boolean = false;
@@ -31,13 +28,11 @@ export class SettingsViewModel {
   constructor(
     settingsRepo: ISettingsRepository,
     clipboardRepo: IClipboardRepository,
-    categoryRepo: ICategoryRepository,
-    blacklistDao: BlacklistDao
+    categoryRepo: ICategoryRepository
   ) {
     this.settingsRepo = settingsRepo;
     this.clipboardRepo = clipboardRepo;
     this.categoryRepo = categoryRepo;
-    this.blacklistDao = blacklistDao;
   }
 
   /**
@@ -75,26 +70,35 @@ export class SettingsViewModel {
   }
 
   /**
-   * Toggles privacy mode on or off.
+   * Sets privacy mode to the specified value.
    */
-  async togglePrivacyMode(): Promise<void> {
-    this.isPrivacyMode = !this.isPrivacyMode;
+  async setPrivacyMode(enabled: boolean): Promise<void> {
+    this.isPrivacyMode = enabled;
     try {
-      await this.settingsRepo.setPrivacyMode(this.isPrivacyMode);
+      await this.settingsRepo.setPrivacyMode(enabled);
+      // Immediately pause/resume clipboard monitoring to match the setting
+      const monitorService = AppContext.getMonitorService();
+      if (monitorService) {
+        if (enabled) {
+          await monitorService.pauseMonitoring();
+        } else {
+          await monitorService.resumeMonitoring();
+        }
+      }
     } catch (error) {
-      console.error('[SettingsViewModel] Failed to toggle privacy mode: ' + JSON.stringify(error));
+      console.error('[SettingsViewModel] Failed to set privacy mode: ' + JSON.stringify(error));
     }
   }
 
   /**
-   * Toggles biometric authentication on or off.
+   * Sets biometric authentication on or off.
    */
-  async toggleBiometric(): Promise<void> {
-    this.isBiometricEnabled = !this.isBiometricEnabled;
+  async setBiometricEnabled(enabled: boolean): Promise<void> {
+    this.isBiometricEnabled = enabled;
     try {
-      await this.settingsRepo.setBiometricEnabled(this.isBiometricEnabled);
+      await this.settingsRepo.setBiometricEnabled(enabled);
     } catch (error) {
-      console.error('[SettingsViewModel] Failed to toggle biometric: ' + JSON.stringify(error));
+      console.error('[SettingsViewModel] Failed to set biometric: ' + JSON.stringify(error));
     }
   }
 
@@ -106,48 +110,6 @@ export class SettingsViewModel {
       await this.clipboardRepo.deleteAll();
     } catch (error) {
       console.error('[SettingsViewModel] Failed to clear all data: ' + JSON.stringify(error));
-    }
-  }
-
-  // ── Blacklist management ────────────────────────────────────────────
-
-  /**
-   * Loads the blacklist from the database.
-   */
-  async loadBlacklist(): Promise<void> {
-    try {
-      this.blacklist = await this.blacklistDao.getAll();
-    } catch (error) {
-      console.error('[SettingsViewModel] Failed to load blacklist: ' + JSON.stringify(error));
-    }
-  }
-
-  /**
-   * Adds an app to the blacklist.
-   *
-   * @param bundleName - HarmonyOS bundle name of the app.
-   * @param appName - Human-readable app name.
-   */
-  async addToBlacklist(bundleName: string, appName: string): Promise<void> {
-    try {
-      await this.blacklistDao.insert(bundleName, appName);
-      await this.loadBlacklist();
-    } catch (error) {
-      console.error('[SettingsViewModel] Failed to add to blacklist: ' + JSON.stringify(error));
-    }
-  }
-
-  /**
-   * Removes an app from the blacklist by entry id.
-   *
-   * @param id - Database id of the blacklist entry.
-   */
-  async removeFromBlacklist(id: number): Promise<void> {
-    try {
-      await this.blacklistDao.deleteById(id);
-      await this.loadBlacklist();
-    } catch (error) {
-      console.error('[SettingsViewModel] Failed to remove from blacklist: ' + JSON.stringify(error));
     }
   }
 
@@ -179,6 +141,7 @@ export class SettingsViewModel {
       }
       await this.categoryRepo.create(name, color);
       await this.loadCategories();
+      AppContext.notifyDataChanged();
     } catch (error) {
       console.error('[SettingsViewModel] Failed to create category: ' + JSON.stringify(error));
     }
@@ -196,6 +159,7 @@ export class SettingsViewModel {
       if (cat) {
         await this.categoryRepo.update(id, name, cat.color);
         await this.loadCategories();
+        AppContext.notifyDataChanged();
       }
     } catch (error) {
       console.error('[SettingsViewModel] Failed to rename category: ' + JSON.stringify(error));
@@ -211,6 +175,7 @@ export class SettingsViewModel {
     try {
       await this.categoryRepo.delete(id);
       await this.loadCategories();
+      AppContext.notifyDataChanged();
     } catch (error) {
       console.error('[SettingsViewModel] Failed to delete category: ' + JSON.stringify(error));
     }

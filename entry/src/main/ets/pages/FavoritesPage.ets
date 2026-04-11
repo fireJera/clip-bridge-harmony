@@ -209,6 +209,20 @@ export struct FavoritesPage {
         await this.viewModel.loadEntries();
       }
       this.syncState();
+      AppContext.notifyDataChanged();
     }
+  }
+}
+
+/**
+ * Preview wrapper that provides the @Provide values FavoritesPage needs.
+ */
+@Preview
+@Component
+struct FavoritesPagePreview {
+  @Provide('navPathStack') navPathStack: NavPathStack = new NavPathStack();
+
+  build() {
+    FavoritesPage()
   }
 }

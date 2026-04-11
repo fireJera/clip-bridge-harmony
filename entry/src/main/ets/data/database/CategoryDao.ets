@@ -32,10 +32,13 @@ export class CategoryDao {
 
   async getAll(): Promise<CustomCategory[]> {
     try {
-      const predicates = new relationalStore.RdbPredicates('custom_category');
-      predicates.orderByAsc('sort_order');
-      predicates.orderByAsc('name');
-      const resultSet = await this.store.query(predicates);
+      const sql: string =
+        'SELECT c.*, COUNT(r.entry_id) AS entry_count ' +
+        'FROM custom_category c ' +
+        'LEFT JOIN entry_category_relation r ON c.id = r.category_id ' +
+        'GROUP BY c.id ' +
+        'ORDER BY c.sort_order ASC, c.name ASC';
+      const resultSet = await this.store.querySql(sql);
       const categories: CustomCategory[] = [];
       while (resultSet.goToNextRow()) {
         categories.push(this.rowToCategory(resultSet));
@@ -230,6 +233,7 @@ export class CategoryDao {
     const sortOrderIndex: number = resultSet.getColumnIndex('sort_order');
     const createdAtIndex: number = resultSet.getColumnIndex('created_at');
     const updatedAtIndex: number = resultSet.getColumnIndex('updated_at');
+    const entryCountIndex: number = resultSet.getColumnIndex('entry_count');
 
     category.id = resultSet.getLong(idIndex);
     category.name = resultSet.getString(nameIndex);
@@ -237,6 +241,7 @@ export class CategoryDao {
     category.sortOrder = resultSet.getLong(sortOrderIndex);
     category.createdAt = resultSet.getString(createdAtIndex);
     category.updatedAt = resultSet.getString(updatedAtIndex);
+    category.entryCount = entryCountIndex >= 0 ? resultSet.getLong(entryCountIndex) : 0;
 
     return category;
   }

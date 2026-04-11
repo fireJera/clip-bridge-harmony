@@ -5,8 +5,8 @@ import { ThemeTokens } from '../common/theme/ThemeTokens';
  */
 interface NavTab {
   label: string;
-  icon: string;
-  activeIcon: string;
+  icon: Resource;
+  activeIcon: Resource;
 }
 
 /**
@@ -17,23 +17,27 @@ interface NavTab {
 export struct BottomNavBar {
   @Link currentIndex: number;
   private readonly tabs: NavTab[] = [
-    { label: '历史', icon: '⏱', activeIcon: '⏱' },
-    { label: '收藏', icon: '♡', activeIcon: '♥' },
-    { label: '设备', icon: '📱', activeIcon: '📱' },
-    { label: '设置', icon: '⚙', activeIcon: '⚙' }
+    { label: '历史', icon: $r('app.media.time'), activeIcon: $r('app.media.time') },
+    { label: '收藏', icon: $r('app.media.favorite'), activeIcon: $r('app.media.favorite') },
+    { label: '设备', icon: $r('app.media.device'), activeIcon: $r('app.media.device') },
+    { label: '设置', icon: $r('app.media.setting'), activeIcon: $r('app.media.setting') }
   ];
 
   build() {
     Row() {
       ForEach(this.tabs, (tab: NavTab, index?: number) => {
         Column() {
-          Text(index === this.currentIndex ? tab.activeIcon : tab.icon)
-            .fontSize(ThemeTokens.NAV_ICON_SIZE)
-            .fontColor(index === this.currentIndex ? ThemeTokens.NAV_ACTIVE_COLOR : ThemeTokens.NAV_INACTIVE_COLOR)
+          Image(index === this.currentIndex ? tab.activeIcon : tab.icon)
+            .width(ThemeTokens.NAV_ICON_SIZE)
+            .height(ThemeTokens.NAV_ICON_SIZE)
+            .objectFit(ImageFit.Contain)
+            .fillColor(index === this.currentIndex ?
+              ThemeTokens.NAV_ACTIVE_COLOR : ThemeTokens.NAV_INACTIVE_COLOR)
 
           Text(tab.label)
             .fontSize(ThemeTokens.NAV_LABEL_SIZE)
-            .fontColor(index === this.currentIndex ? ThemeTokens.NAV_ACTIVE_COLOR : ThemeTokens.NAV_INACTIVE_COLOR)
+            .fontColor(index === this.currentIndex ?
+              ThemeTokens.NAV_ACTIVE_COLOR : ThemeTokens.NAV_INACTIVE_COLOR)
             .fontWeight(index === this.currentIndex ? ThemeTokens.FONT_WEIGHT_MEDIUM : ThemeTokens.FONT_WEIGHT_REGULAR)
             .margin({ top: ThemeTokens.SPACING_XS })
         }

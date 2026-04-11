@@ -14,6 +14,7 @@ import { promptAction, LengthMetrics } from '@kit.ArkUI';
  *   - Sync info (v2 placeholder)
  *   - Bottom: Copy to Clipboard button
  */
+@Preview
 @Component
 export struct DetailPage {
   // Reactive state synced from viewModel
@@ -30,7 +31,6 @@ export struct DetailPage {
   @State isFavorite: boolean = false;
   @State isPinned: boolean = false;
   @State contentType: string = 'text';
-  @State sourceApp: string = '';
   @State createdAt: string = '';
   @State updatedAt: string = '';
   @State typeLabel: string = '';
@@ -77,7 +77,6 @@ export struct DetailPage {
         this.isFavorite = this.viewModel.entry.isFavorite;
         this.isPinned = this.viewModel.entry.isPinned;
         this.contentType = this.viewModel.entry.contentType;
-        this.sourceApp = this.viewModel.entry.sourceApp;
         this.createdAt = this.viewModel.entry.createdAt;
         this.updatedAt = this.viewModel.entry.updatedAt;
         this.contentPreview = this.viewModel.entry.contentPreview;
@@ -100,12 +99,12 @@ export struct DetailPage {
     return !this.isImageType();
   }
 
-  private getTypeIcon(): string {
-    const icons: Record<string, string> = {
-      'text': '📝', 'url': '🔗', 'email': '✉️',
-      'phone': '📱', 'image': '🖼️', 'address': '📍'
+  private getTypeIcon(): Resource {
+    const icons: Record<string, Resource> = {
+      'text': $r('app.media.text'), 'url': $r('app.media.link'), 'email': $r('app.media.email'),
+      'phone': $r('app.media.card'), 'image': $r('app.media.image'), 'address': $r('app.media.address')
     };
-    return icons[this.contentType] || '📝';
+    return icons[this.contentType] || $r('app.media.text');
   }
 
   private getTypeColor(): string {
@@ -343,9 +342,11 @@ export struct DetailPage {
   TopBar() {
     Row() {
       Row() {
-        Text('‹')
-          .fontSize(24)
-          .fontColor('#999999')
+        Image($r('app.media.back'))
+          .width(16)
+          .height(16)
+          .objectFit(ImageFit.Contain)
+          .fillColor('#191C1E')
       }
       .width(40)
       .height(40)
@@ -360,15 +361,19 @@ export struct DetailPage {
         .textAlign(TextAlign.Center)
 
       // Delete
-      Text('🗑')
-        .fontSize(18)
-        .fontColor('#999999')
+      Image($r('app.media.trash'))
+        .width(20)
+        .height(20)
+        .objectFit(ImageFit.Contain)
+        .fillColor('#414754')
         .margin({ right: 16 })
         .onClick(() => { this.handleDelete(); })
 
       // Pin
-      Text(this.isPinned ? '📌' : '📍')
-        .fontSize(18)
+      Image(this.isPinned ? $r('app.media.pin') : $r('app.media.unpin'))
+        .width(12)
+        .height(20)
+        .objectFit(ImageFit.Contain)
         .margin({ right: 12 })
         .onClick(() => {
           if (this.viewModel) {
@@ -456,8 +461,10 @@ export struct DetailPage {
                 this.showImagePreview();
               })
           } else {
-            Text('🖼')
-              .fontSize(48)
+            Image($r('app.media.image'))
+              .width(48)
+              .height(48)
+              .objectFit(ImageFit.Contain)
               .margin({ bottom: 8 })
             Text('图片不可用')
               .fontSize(12)
@@ -492,11 +499,13 @@ export struct DetailPage {
 
       // Source info line
       Row() {
-        Text('🕐')
-          .fontSize(14)
+        Image($r('app.media.time'))
+          .width(14)
+          .height(14)
+          .objectFit(ImageFit.Contain)
           .margin({ right: 6 })
 
-        Text(`${this.formatTime(this.updatedAt)} ${this.sourceApp ? '来自 ' + this.sourceApp : ''}`)
+        Text(this.formatTime(this.updatedAt))
           .fontSize(12)
           .fontColor('#999999')
 
@@ -527,7 +536,7 @@ export struct DetailPage {
       if (this.isEditingNote) {
         TextInput({ placeholder: '为这条记录添加备注...', text: $$this.note })
           .id('noteInput')
-          .fontSize(16)
+          .fontSize(14)
           .fontColor('#1A1A1A')
           .placeholderColor('#CCCCCC')
           .backgroundColor(Color.White)
@@ -626,9 +635,10 @@ export struct DetailPage {
   @Builder
   BottomBar() {
     Row() {
-      Text('📋')
-        .fontSize(20)
-        .fontColor(Color.White)
+      Image($r('app.media.copy'))
+        .width(20)
+        .height(20)
+        .objectFit(ImageFit.Contain)
         .margin({ right: 8 })
 
       Text(this.isCopied ? '已复制到剪贴板' : '复制到剪贴板')

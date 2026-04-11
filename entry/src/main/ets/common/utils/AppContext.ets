@@ -1,9 +1,9 @@
 import { IClipboardRepository } from '../../repository/ClipboardRepository';
 import { ICategoryRepository } from '../../repository/CategoryRepository';
 import { ISettingsRepository } from '../../repository/SettingsRepository';
-import { BlacklistDao } from '../../data/database/BlacklistDao';
 import { EncryptionService } from '../../service/EncryptionService';
 import { ImageStorageService } from '../../service/ImageStorageService';
+import { ClipboardMonitorService } from '../../service/ClipboardMonitorService';
 
 /**
  * Application-wide context holder.
@@ -15,9 +15,9 @@ export class AppContext {
   private static clipboardRepo: IClipboardRepository | null = null;
   private static categoryRepo: ICategoryRepository | null = null;
   private static settingsRepo: ISettingsRepository | null = null;
-  private static blacklistDao: BlacklistDao | null = null;
   private static encryptionService: EncryptionService | null = null;
   private static imageStorageService: ImageStorageService | null = null;
+  private static monitorService: ClipboardMonitorService | null = null;
 
   static setContext(context: Context): void {
     AppContext.context = context;
@@ -54,14 +54,6 @@ export class AppContext {
     return AppContext.settingsRepo;
   }
 
-  static setBlacklistDao(dao: BlacklistDao): void {
-    AppContext.blacklistDao = dao;
-  }
-
-  static getBlacklistDao(): BlacklistDao | null {
-    return AppContext.blacklistDao;
-  }
-
   static setEncryptionService(service: EncryptionService): void {
     AppContext.encryptionService = service;
   }
@@ -76,6 +68,14 @@ export class AppContext {
 
   static getImageStorageService(): ImageStorageService | null {
     return AppContext.imageStorageService;
+  }
+
+  static setMonitorService(service: ClipboardMonitorService): void {
+    AppContext.monitorService = service;
+  }
+
+  static getMonitorService(): ClipboardMonitorService | null {
+    return AppContext.monitorService;
   }
 
   // ── UI refresh callbacks ──────────────────────────────────────
@@ -102,5 +102,48 @@ export class AppContext {
     AppContext.refreshCallbacks.forEach((cb: () => void) => {
       cb();
     });
+  }
+
+  // ── Auth lock (biometric gate) ────────────────────────────────
+
+  private static authLocked: boolean = false;
+  private static authLockCallbacks: ((locked: boolean) => void)[] = [];
+
+  static isAuthLocked(): boolean {
+    return AppContext.authLocked;
+  }
+
+  static setAuthLocked(locked: boolean): void {
+    AppContext.authLocked = locked;
+    AppContext.authLockCallbacks.forEach((cb: (locked: boolean) => void) => {
+      cb(locked);
+    });
+  }
+
+  static addAuthLockCallback(cb: (locked: boolean) => void): void {
+    if (AppContext.authLockCallbacks.indexOf(cb) < 0) {
+      AppContext.authLockCallbacks.push(cb);
+    }
+  }
+
+  static removeAuthLockCallback(cb: (locked: boolean) => void): void {
+    const index: number = AppContext.authLockCallbacks.indexOf(cb);
+    if (index >= 0) {
+      AppContext.authLockCallbacks.splice(index, 1);
+    }
+  }
+
+  // ── Auth retry (re-trigger biometric prompt from UI) ──────────
+
+  private static authRetryAction: (() => void) | null = null;
+
+  static setAuthRetryAction(action: (() => void) | null): void {
+    AppContext.authRetryAction = action;
+  }
+
+  static requestAuthRetry(): void {
+    if (AppContext.authRetryAction) {
+      AppContext.authRetryAction();
+    }
   }
 }

@@ -22,9 +22,10 @@ export struct ClipboardListItem {
       // Card header: icon + type label + time + more
       Row() {
         Row() {
-          Text(this.getTypeIcon())
-            .fontSize(16)
-            .fontColor(Color.White)
+          Image(this.getTypeIcon())
+            .width(18)
+            .height(18)
+            .objectFit(ImageFit.Contain)
         }
         .width(32)
         .height(32)
@@ -49,13 +50,10 @@ export struct ClipboardListItem {
 
         Blank()
 
-        Text('···')
-          .fontSize(16)
-          .fontColor(ThemeTokens.TEXT_TERTIARY)
-          .width(28)
-          .height(28)
-          .textAlign(TextAlign.Center)
-          .borderRadius(14)
+        Image(this.entry.isPinned ? $r('app.media.pin') : $r('app.media.unpin'))
+          .width(12)
+          .height(20)
+          .objectFit(ImageFit.Contain)
           .onClick(() => {
             if (this.onItemPin) {
               this.onItemPin(this.entry);
@@ -152,8 +150,10 @@ export struct ClipboardListItem {
   LinkPreview() {
     Row() {
       Column() {
-        Text('🔗')
-          .fontSize(14)
+        Image($r('app.media.link'))
+          .width(14)
+          .height(14)
+          .objectFit(ImageFit.Contain)
       }
       .width(28)
       .height(28)
@@ -202,8 +202,10 @@ export struct ClipboardListItem {
           .objectFit(ImageFit.Cover)
       } else {
         Column() {
-          Text('🖼')
-            .fontSize(24)
+          Image($r('app.media.image'))
+            .width(24)
+            .height(24)
+            .objectFit(ImageFit.Contain)
             .opacity(0.6)
         }
         .width('100%')
@@ -225,33 +227,39 @@ export struct ClipboardListItem {
       'email': '邮箱',
       'phone': '电话',
       'image': '图片',
-      'address': '地址'
+      'address': '地址',
+      'bankcard': '银行卡',
+      'code': '代码'
     };
     return labels[this.entry.contentType] || '文本';
   }
 
-  private getTypeIcon(): string {
-    const icons: Record<string, string> = {
-      'text': 'T',
-      'url': '🔗',
-      'email': '✉',
-      'phone': '☎',
-      'image': '🖼',
-      'address': '📍'
+  private getTypeIcon(): Resource {
+    const icons: Record<string, Resource> = {
+      'text': $r('app.media.text'),
+      'url': $r('app.media.link'),
+      'email': $r('app.media.email'),
+      'phone': $r('app.media.phone'),
+      'image': $r('app.media.image'),
+      'address': $r('app.media.address'),
+      'bankcard': $r('app.media.card'),
+      'code': $r('app.media.code')
     };
-    return icons[this.entry.contentType] || 'T';
+    return icons[this.entry.contentType] || $r('app.media.text');
   }
 
   private getTypeColor(): string {
     const colors: Record<string, string> = {
-      'text': ThemeTokens.TYPE_TEXT_COLOR,
-      'url': ThemeTokens.TYPE_URL_COLOR,
-      'email': ThemeTokens.TYPE_EMAIL_COLOR,
-      'phone': ThemeTokens.TYPE_PHONE_COLOR,
-      'image': ThemeTokens.TYPE_IMAGE_COLOR,
-      'address': ThemeTokens.TYPE_ADDRESS_COLOR
+      'text': '#FFF7ED',
+      'url': '#EFF6FF',
+      'email': '#EEF2FF',
+      'phone': '#F0FDFA',
+      'image': '#ECFDF5',
+      'address': '#FEF2F2',
+      'bankcard': '#F8FAFC',
+      'code': '#60A5FA'
     };
-    return colors[this.entry.contentType] || ThemeTokens.TYPE_TEXT_COLOR;
+    return colors[this.entry.contentType] || '#FFF7ED';
   }
 
   private getLinkDomain(): string {

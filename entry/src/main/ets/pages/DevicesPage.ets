@@ -4,6 +4,7 @@ import { ThemeTokens } from '../common/theme/ThemeTokens';
  * Placeholder Devices page for v1.
  * Shows "coming soon" message. Full device sync management planned for v2.
  */
+@Preview
 @Component
 export struct DevicesPage {
   build() {

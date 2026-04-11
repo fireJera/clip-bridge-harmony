@@ -1,42 +1,29 @@
 import { SettingsViewModel } from '../viewmodel/SettingsViewModel';
-import { AppBlacklistEntry } from '../model/AppBlacklistEntry';
 import { CustomCategory } from '../model/CustomCategory';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 import { AppConstants } from '../common/constants/AppConstants';
 import { AppContext } from '../common/utils/AppContext';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-
-interface SettingsItem {
-  icon: string;
-  title: string;
-  subtitle: string;
-  type: string; // 'toggle' | 'navigate' | 'display'
-  isOn: boolean;
-  value: string;
-  key: string;
-}
+import { userAuth } from '@kit.UserAuthenticationKit';
+import { common } from '@kit.AbilityKit';
 
 /**
- * Settings page with five sections:
- *   1. History limit slider
- *   2. Privacy mode toggle
- *   3. App blacklist management
- *   4. Biometric re-authentication toggle
- *   5. About section with version and clear-data
+ * Settings page with card-group sections:
+ *   1. 录制管理 — auto recording toggle + history limit slider
+ *   2. 同步 — cloud sync + auto sync
+ *   3. 安全 — biometric toggle
+ *   4. 收藏夹管理 — category management
+ *   5. 关于 — version, privacy, clear data
  */
+@Preview
 @Component
 export struct SettingsPage {
   @State historyLimit: number = AppConstants.DEFAULT_HISTORY_LIMIT;
   @State isPrivacyMode: boolean = false;
   @State isBiometricEnabled: boolean = false;
-  @State blacklist: AppBlacklistEntry[] = [];
-  @State blacklistInput: string = '';
   @State categories: CustomCategory[] = [];
   @State appVersion: string = '1.0.0';
-  @State showAddBlacklistDialog: boolean = false;
   @State showAddCategoryDialog: boolean = false;
-  @State newBundleName: string = '';
-  @State newAppName: string = '';
   @State newCategoryName: string = '';
   @State newCategoryColor: string = '#007DFF';
   private viewModel: SettingsViewModel | null = null;
@@ -45,18 +32,26 @@ export struct SettingsPage {
     '#FF6B6B', '#2196F3', '#9C27B0', '#FF5722', '#607D8B'
   ];
 
+  private refreshCallback: () => void = () => {
+    this.loadCategories();
+  };
+
   aboutToAppear(): void {
     this.tryInitViewModel();
+    AppContext.addRefreshCallback(this.refreshCallback);
+  }
+
+  aboutToDisappear(): void {
+    AppContext.removeRefreshCallback(this.refreshCallback);
   }
 
   private tryInitViewModel(): void {
     const settingsRepo = AppContext.getSettingsRepo();
     const clipRepo = AppContext.getClipboardRepo();
     const catRepo = AppContext.getCategoryRepo();
-    const blacklistDao = AppContext.getBlacklistDao();
-    if (settingsRepo && clipRepo && catRepo && blacklistDao) {
+    if (settingsRepo && clipRepo && catRepo) {
       hilog.info(0x0000, '[SettingsPage]', 'repos ready, creating ViewModel');
-      this.viewModel = new SettingsViewModel(settingsRepo, clipRepo, catRepo, blacklistDao);
+      this.viewModel = new SettingsViewModel(settingsRepo, clipRepo, catRepo);
       this.loadSettings();
     } else {
       hilog.info(0x0000, '[SettingsPage]', 'repos not ready, retrying in 200ms');
@@ -69,524 +64,384 @@ export struct SettingsPage {
   private async loadSettings(): Promise<void> {
     if (this.viewModel) {
       await this.viewModel.loadSettings();
-      await this.viewModel.loadBlacklist();
       await this.viewModel.loadCategories();
       this.historyLimit = this.viewModel.historyLimit;
       this.isPrivacyMode = this.viewModel.isPrivacyMode;
       this.isBiometricEnabled = this.viewModel.isBiometricEnabled;
-      this.blacklist = [...this.viewModel.blacklist];
       this.categories = [...this.viewModel.categories];
       this.appVersion = this.viewModel.appVersion;
     }
   }
 
+  private async loadCategories(): Promise<void> {
+    if (this.viewModel) {
+      await this.viewModel.loadCategories();
+      this.categories = [...this.viewModel.categories];
+    }
+  }
+
   build() {
     Stack() {
-    Scroll() {
-      Column() {
-        // Hero branding
-        this.HeroBranding()
-
-        // Recording section - card group
-        Text('Recording')
-          .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-          .fontColor(ThemeTokens.TEXT_TERTIARY)
-          .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-          .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
-
+      Scroll() {
         Column() {
-          this.SettingsCardRow('📋', '自动录制', '监听并记录剪贴板内容', 'toggle', !this.isPrivacyMode, '',
-            'recording')
-        }
-        .backgroundColor(ThemeTokens.SURFACE)
-        .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-        .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+          // Hero branding
+          this.HeroBranding()
 
-        // Sync section - card group
-        Text('Sync')
-          .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-          .fontColor(ThemeTokens.TEXT_TERTIARY)
-          .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-          .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
+          // ── 录制管理 ──
+          this.SectionLabel('录制管理')
+          Column() {
+            // 自动记录 — Toggle 内联绑定 @State，避免 @Builder 值参数导致响应式丢失
+            Row() {
+              Row() {
+                Image($r('app.media.card'))
+                  .width(20)
+                  .height(20)
+                  .objectFit(ImageFit.Contain)
+              }
+              .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+              .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+              .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
+              .backgroundColor(ThemeTokens.BACKGROUND)
+              .justifyContent(FlexAlign.Center)
 
-        Column() {
-          this.SettingsCardRow('☁️', '云同步', '在设备间同步剪贴板历史', 'toggle', false, '', 'sync')
-          this.SettingsCardRow('🔄', '自动同步', '仅在 Wi-Fi 下自动同步', 'navigate', false, '', 'autoSync')
-        }
-        .backgroundColor(ThemeTokens.SURFACE)
-        .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-        .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+              Column() {
+                Text('自动记录')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.TEXT_PRIMARY)
+                Text('监听并记录剪贴板内容')
+                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                  .fontColor(ThemeTokens.TEXT_TERTIARY)
+                  .margin({ top: 2 })
+              }
+              .alignItems(HorizontalAlign.Start)
+              .margin({ left: ThemeTokens.SPACING_MD })
+              .layoutWeight(1)
 
-        // About section - card group
-        Text('About')
-          .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-          .fontColor(ThemeTokens.TEXT_TERTIARY)
-          .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-          .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
-
-        Column() {
-          this.SettingsCardRow('ℹ️', 'Version', '', 'display', false, this.appVersion, 'version')
-          this.SettingsCardRow('🔒', '隐私政策', '', 'navigate', false, '', 'privacy')
-        }
-        .backgroundColor(ThemeTokens.SURFACE)
-        .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-        .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-
-        // Footer
-        this.SettingsFooter()
-
-        // ── Keep original sections below ──
-
-        // Section 1: History limit
-        this.SectionHeader('历史记录上限')
-        Row() {
-          Text('保留条数')
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .layoutWeight(1)
-
-          Text(`${this.historyLimit}`)
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-            .fontColor(ThemeTokens.PRIMARY)
-        }
-        .width('100%')
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG,
-          top: ThemeTokens.SPACING_SM, bottom: ThemeTokens.SPACING_XS })
-
-        Slider({
-          value: this.historyLimit,
-          min: AppConstants.MIN_HISTORY_LIMIT,
-          max: AppConstants.MAX_HISTORY_LIMIT,
-          step: 50,
-          style: SliderStyle.OutSet
-        })
-          .width('100%')
-          .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-          .blockColor(ThemeTokens.PRIMARY)
-          .trackColor(ThemeTokens.DIVIDER)
-          .selectedColor(ThemeTokens.PRIMARY)
-          .onChange((value: number) => {
-            this.historyLimit = Math.round(value);
-            if (this.viewModel) {
-              this.viewModel.updateHistoryLimit(this.historyLimit);
+              Toggle({ type: ToggleType.Switch, isOn: !this.isPrivacyMode })
+                .selectedColor(ThemeTokens.PRIMARY)
+                .onChange((checked: boolean) => {
+                  if (this.viewModel) {
+                    this.isPrivacyMode = !checked;
+                    this.viewModel.setPrivacyMode(!checked);
+                  }
+                })
             }
-          })
+            .width('100%')
+            .padding(ThemeTokens.SPACING_MD)
+            .alignItems(VerticalAlign.Center)
 
-        this.SectionDivider()
+            this.CardDivider()
 
-        // Section 2: Privacy mode
-        this.SectionHeader('隐私模式')
-        Row() {
-          Column() {
-            Text('暂停监控')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.TEXT_PRIMARY)
-            Text('开启后不会记录剪贴板内容')
-              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-              .fontColor(ThemeTokens.TEXT_TERTIARY)
-              .margin({ top: ThemeTokens.SPACING_XS })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
+            Column() {
+              Row() {
+                Text('历史记录上限')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.TEXT_PRIMARY)
+                  .layoutWeight(1)
 
-          Toggle({ type: ToggleType.Switch, isOn: this.isPrivacyMode })
-            .selectedColor(ThemeTokens.PRIMARY)
-            .onChange((isOn: boolean) => {
-              this.isPrivacyMode = isOn;
-              if (this.viewModel) {
-                this.viewModel.togglePrivacyMode();
+                Text(`${this.historyLimit}`)
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+                  .fontColor(ThemeTokens.PRIMARY)
               }
-            })
-        }
-        .width('100%')
-        .padding(ThemeTokens.SPACING_LG)
-        .alignItems(VerticalAlign.Center)
+              .width('100%')
 
-        this.SectionDivider()
-
-        // Section 3: App blacklist
-        this.SectionHeader('应用黑名单')
-        Row() {
-          Text('黑名单中的应用不会记录剪贴板')
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.TEXT_TERTIARY)
-            .layoutWeight(1)
-
-          Text('添加')
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.PRIMARY)
-            .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-            .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
-            .onClick(() => {
-              this.showAddBlacklist();
-            })
-        }
-        .width('100%')
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG,
-          bottom: ThemeTokens.SPACING_SM })
-
-        // Blacklist entries
-        if (this.blacklist.length > 0) {
-          List({ space: 0 }) {
-            ForEach(this.blacklist, (entry: AppBlacklistEntry) => {
-              ListItem() {
-                Row() {
-                  Text(entry.appName || entry.bundleName)
-                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                    .fontColor(ThemeTokens.TEXT_PRIMARY)
-                    .layoutWeight(1)
-
-                  Text('移除')
-                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                    .fontColor(ThemeTokens.ERROR)
-                    .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
-                    .onClick(() => {
-                      this.removeBlacklistEntry(entry.id);
-                    })
-                }
+              Slider({
+                value: this.historyLimit,
+                min: AppConstants.MIN_HISTORY_LIMIT,
+                max: AppConstants.MAX_HISTORY_LIMIT,
+                step: 50,
+                style: SliderStyle.OutSet
+              })
                 .width('100%')
-                .height(44)
-                .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-                .alignItems(VerticalAlign.Center)
-              }
-              .swipeAction({ end: this.deleteBlacklistSwipeAction(entry) })
-            }, (entry: AppBlacklistEntry) => entry.id.toString())
+                .blockColor(ThemeTokens.PRIMARY)
+                .trackColor(ThemeTokens.DIVIDER)
+                .selectedColor(ThemeTokens.PRIMARY)
+                .onChange((value: number) => {
+                  this.historyLimit = Math.round(value);
+                  if (this.viewModel) {
+                    this.viewModel.updateHistoryLimit(this.historyLimit);
+                  }
+                })
+            }
+            .width('100%')
+            .padding(ThemeTokens.SPACING_MD)
           }
-          .width('100%')
-        } else {
-          Row() {
-            Text('暂无黑名单应用')
-              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-              .fontColor(ThemeTokens.TEXT_TERTIARY)
-          }
-          .width('100%')
-          .padding({ left: ThemeTokens.SPACING_LG, bottom: ThemeTokens.SPACING_SM })
-        }
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
 
-        this.SectionDivider()
-
-        // Section 4: Biometric
-        this.SectionHeader('生物识别')
-        Row() {
+          // ── 安全 ──
+          this.SectionLabel('安全')
           Column() {
-            Text('生物识别验证')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.TEXT_PRIMARY)
-            Text('从后台返回时需要验证身份')
-              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-              .fontColor(ThemeTokens.TEXT_TERTIARY)
-              .margin({ top: ThemeTokens.SPACING_XS })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-
-          Toggle({ type: ToggleType.Switch, isOn: this.isBiometricEnabled })
-            .selectedColor(ThemeTokens.PRIMARY)
-            .onChange((isOn: boolean) => {
-              this.isBiometricEnabled = isOn;
-              if (this.viewModel) {
-                this.viewModel.toggleBiometric();
+            // 生物识别 — Toggle 内联绑定 @State
+            Row() {
+              Row() {
+                Text('🔒')
+                  .fontSize(18)
               }
-            })
-        }
-        .width('100%')
-        .padding(ThemeTokens.SPACING_LG)
-        .alignItems(VerticalAlign.Center)
+              .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+              .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+              .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
+              .backgroundColor(ThemeTokens.BACKGROUND)
+              .justifyContent(FlexAlign.Center)
 
-        this.SectionDivider()
+              Column() {
+                Text('生物识别验证')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.TEXT_PRIMARY)
+                Text('从后台返回时需要验证身份')
+                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                  .fontColor(ThemeTokens.TEXT_TERTIARY)
+                  .margin({ top: 2 })
+              }
+              .alignItems(HorizontalAlign.Start)
+              .margin({ left: ThemeTokens.SPACING_MD })
+              .layoutWeight(1)
 
-        // Section 5: Category management
-        this.SectionHeader('收藏夹管理')
-        Row() {
-          Text('管理自定义收藏夹')
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.TEXT_TERTIARY)
-            .layoutWeight(1)
-
-          Text('添加')
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.PRIMARY)
-            .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-            .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
+              Toggle({ type: ToggleType.Switch, isOn: this.isBiometricEnabled })
+                .selectedColor(ThemeTokens.PRIMARY)
+                .hitTestBehavior(HitTestMode.None)
+            }
+            .width('100%')
+            .padding(ThemeTokens.SPACING_MD)
+            .alignItems(VerticalAlign.Center)
             .onClick(() => {
-              this.showAddCategory();
+              this.onBiometricToggleClicked();
             })
-        }
-        .width('100%')
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG,
-          bottom: ThemeTokens.SPACING_SM })
+          }
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
 
-        // Category list
-        if (this.categories.length > 0) {
-          List({ space: 0 }) {
-            ForEach(this.categories, (cat: CustomCategory) => {
-              ListItem() {
-                Row() {
-                  // Color dot
-                  Text('')
-                    .width(12)
-                    .height(12)
-                    .borderRadius(6)
-                    .backgroundColor(cat.color || ThemeTokens.PRIMARY)
-                    .margin({ right: ThemeTokens.SPACING_MD })
+          // ── 收藏夹管理 ──
+          this.SectionLabel('收藏夹管理')
+          Column() {
+            Row() {
+              Text('管理自定义收藏夹')
+                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                .fontColor(ThemeTokens.TEXT_TERTIARY)
+                .layoutWeight(1)
 
-                  // Name
-                  Text(cat.name)
-                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                    .fontColor(ThemeTokens.TEXT_PRIMARY)
-                    .layoutWeight(1)
+              Text('添加')
+                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                .fontColor(ThemeTokens.PRIMARY)
+                .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+                .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
+                .onClick(() => {
+                  this.showAddCategory();
+                })
+            }
+            .width('100%')
+            .padding(ThemeTokens.SPACING_MD)
+            .alignItems(VerticalAlign.Center)
 
-                  // Rename action
-                  Text('重命名')
-                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                    .fontColor(ThemeTokens.PRIMARY)
-                    .margin({ right: ThemeTokens.SPACING_MD })
-                    .onClick(() => {
-                      this.showRenameCategory(cat);
-                    })
+            if (this.categories.length > 0) {
+              ForEach(this.categories, (cat: CustomCategory) => {
+                Column() {
+                  this.CardDivider()
+                  Row() {
+                    Text('')
+                      .width(12)
+                      .height(12)
+                      .borderRadius(6)
+                      .backgroundColor(cat.color || ThemeTokens.PRIMARY)
+                      .margin({ right: ThemeTokens.SPACING_MD })
 
-                  // Entry count
-                  Text(`${cat.entryCount}`)
-                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                    .fontColor(ThemeTokens.TEXT_TERTIARY)
-                    .margin({ right: ThemeTokens.SPACING_MD })
+                    Text(cat.name)
+                      .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                      .fontColor(ThemeTokens.TEXT_PRIMARY)
+                      .layoutWeight(1)
+
+                    Text('重命名')
+                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                      .fontColor(ThemeTokens.PRIMARY)
+                      .margin({ right: ThemeTokens.SPACING_MD })
+                      .onClick(() => {
+                        this.showRenameCategory(cat);
+                      })
+
+                    Text(`${cat.entryCount} 条`)
+                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                      .fontColor(ThemeTokens.TEXT_TERTIARY)
+                      .margin({ right: ThemeTokens.SPACING_SM })
+
+                    Text('删除')
+                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                      .fontColor(ThemeTokens.ERROR)
+                      .onClick(() => {
+                        this.onDeleteCategoryConfirm(cat);
+                      })
+                  }
+                  .width('100%')
+                  .padding(ThemeTokens.SPACING_MD)
+                  .alignItems(VerticalAlign.Center)
                 }
-                .width('100%')
-                .height(48)
-                .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-                .alignItems(VerticalAlign.Center)
+              }, (cat: CustomCategory) => `settings_cat_${cat.id}_${cat.entryCount}`)
+            } else {
+              this.CardDivider()
+              Row() {
+                Text('暂无收藏夹')
+                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                  .fontColor(ThemeTokens.TEXT_TERTIARY)
               }
-              .swipeAction({ end: this.deleteCategorySwipeAction(cat) })
-            }, (cat: CustomCategory) => `settings_cat_${cat.id}`)
+              .width('100%')
+              .padding({ left: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_SM,
+                top: ThemeTokens.SPACING_XS })
+            }
           }
-          .width('100%')
-        } else {
-          Row() {
-            Text('暂无收藏夹')
-              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-              .fontColor(ThemeTokens.TEXT_TERTIARY)
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+
+          // ── 关于 ──
+          this.SectionLabel('关于')
+          Column() {
+            this.SettingsCardRow('ℹ️', '版本', '', 'display', false, this.appVersion, 'version')
+
+            this.CardDivider()
+
+            Row() {
+              Text('清除所有数据')
+                .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                .fontColor(ThemeTokens.ERROR)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .padding(ThemeTokens.SPACING_MD)
+            .alignItems(VerticalAlign.Center)
+            .onClick(() => {
+              this.showClearDataConfirm();
+            })
           }
-          .width('100%')
-          .padding({ left: ThemeTokens.SPACING_LG, bottom: ThemeTokens.SPACING_SM })
-        }
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
 
-        this.SectionDivider()
-
-        // Section 6: About
-        this.SectionHeader('关于')
-        Row() {
-          Text('应用版本')
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .layoutWeight(1)
-          Text(this.appVersion)
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_TERTIARY)
+          // Footer
+          this.SettingsFooter()
         }
-        .width('100%')
-        .height(48)
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-        .alignItems(VerticalAlign.Center)
-
-        Row() {
-          Text('清除所有数据')
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.ERROR)
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .height(48)
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => {
-          this.showClearDataConfirm();
-        })
       }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor(ThemeTokens.BACKGROUND)
+      .width('100%')
+      .height('100%')
+      .backgroundColor(ThemeTokens.BACKGROUND)
 
-    // Add-category dialog overlay
-    if (this.showAddCategoryDialog) {
-      Column() {
+      // Add-category dialog overlay
+      if (this.showAddCategoryDialog) {
         Column() {
-          Text('新建收藏夹')
-            .fontSize(ThemeTokens.FONT_SIZE_TITLE)
-            .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .margin({ bottom: ThemeTokens.SPACING_SM })
+          Column() {
+            Text('新建收藏夹')
+              .fontSize(ThemeTokens.FONT_SIZE_TITLE)
+              .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
+              .fontColor(ThemeTokens.TEXT_PRIMARY)
+              .margin({ bottom: ThemeTokens.SPACING_SM })
 
-          Text(`当前 ${this.categories.length}/${AppConstants.MAX_CATEGORIES}`)
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.TEXT_TERTIARY)
+            Text(`当前 ${this.categories.length}/${AppConstants.MAX_CATEGORIES}`)
+              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+              .fontColor(ThemeTokens.TEXT_TERTIARY)
+              .margin({ bottom: ThemeTokens.SPACING_MD })
+
+            TextInput({ placeholder: '收藏夹名称', text: this.newCategoryName })
+              .width('100%')
+              .height(40)
+              .fontSize(ThemeTokens.FONT_SIZE_BODY)
+              .fontColor(ThemeTokens.TEXT_PRIMARY)
+              .placeholderColor(ThemeTokens.TEXT_TERTIARY)
+              .backgroundColor(ThemeTokens.BACKGROUND)
+              .borderRadius(8)
+              .defaultFocus(true)
+              .onChange((value: string) => {
+                this.newCategoryName = value;
+              })
+
+            Text('选择颜色')
+              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+              .fontColor(ThemeTokens.TEXT_SECONDARY)
+              .margin({ top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
+
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+              ForEach(this.PRESET_COLORS, (color: string) => {
+                Text('')
+                  .width(32)
+                  .height(32)
+                  .borderRadius(16)
+                  .backgroundColor(color)
+                  .margin(4)
+                  .border({
+                    width: this.newCategoryColor === color ? 3 : 0,
+                    color: ThemeTokens.TEXT_PRIMARY
+                  })
+                  .onClick(() => {
+                    this.newCategoryColor = color;
+                  })
+              }, (color: string) => color)
+            }
+            .width('100%')
             .margin({ bottom: ThemeTokens.SPACING_MD })
 
-          TextInput({ placeholder: '收藏夹名称', text: this.newCategoryName })
-            .width('100%')
-            .height(40)
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .defaultFocus(true)
-            .onChange((value: string) => {
-              this.newCategoryName = value;
-            })
-
-          // Color picker
-          Text('选择颜色')
-            .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-            .fontColor(ThemeTokens.TEXT_SECONDARY)
-            .margin({ top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
-
-          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-            ForEach(this.PRESET_COLORS, (color: string) => {
-              Text('')
-                .width(32)
-                .height(32)
-                .borderRadius(16)
-                .backgroundColor(color)
-                .margin(4)
-                .border({
-                  width: this.newCategoryColor === color ? 3 : 0,
-                  color: ThemeTokens.TEXT_PRIMARY
-                })
-                .onClick(() => {
-                  this.newCategoryColor = color;
-                })
-            }, (color: string) => color)
-          }
-          .width('100%')
-          .margin({ bottom: ThemeTokens.SPACING_MD })
-
-          Row() {
-            Text('取消')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.TEXT_SECONDARY)
+            Row() {
+              Row() {
+                Text('取消')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.TEXT_SECONDARY)
+              }
               .layoutWeight(1)
-              .textAlign(TextAlign.Center)
+              .justifyContent(FlexAlign.Center)
+              .padding(ThemeTokens.SPACING_SM)
               .onClick(() => {
                 this.showAddCategoryDialog = false;
               })
 
-            Text('创建')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.PRIMARY)
-              .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+              Row() {
+                Text('创建')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.PRIMARY)
+                  .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+              }
               .layoutWeight(1)
-              .textAlign(TextAlign.Center)
+              .justifyContent(FlexAlign.Center)
+              .padding(ThemeTokens.SPACING_SM)
               .onClick(() => {
                 this.onCreateCategory();
               })
-          }
-          .width('100%')
-        }
-        .width('85%')
-        .padding(ThemeTokens.SPACING_LG)
-        .backgroundColor(ThemeTokens.SURFACE)
-        .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
-        .onClick(() => {})
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .backgroundColor(0x80000000)
-      .onClick(() => {
-        this.showAddCategoryDialog = false;
-      })
-    }
-
-    // Add-blacklist dialog overlay
-    if (this.showAddBlacklistDialog) {
-      Column() {
-        Column() {
-          Text('添加黑名单应用')
-            .fontSize(ThemeTokens.FONT_SIZE_TITLE)
-            .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .margin({ bottom: ThemeTokens.SPACING_MD })
-
-          TextInput({ placeholder: 'Bundle Name (如 com.example.app)', text: this.newBundleName })
+            }
             .width('100%')
-            .height(40)
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .defaultFocus(true)
-            .onChange((value: string) => {
-              this.newBundleName = value;
-            })
-
-          TextInput({ placeholder: '应用名称 (可选)', text: this.newAppName })
-            .width('100%')
-            .height(40)
-            .fontSize(ThemeTokens.FONT_SIZE_BODY)
-            .fontColor(ThemeTokens.TEXT_PRIMARY)
-            .margin({ top: ThemeTokens.SPACING_SM })
-            .onChange((value: string) => {
-              this.newAppName = value;
-            })
-
-          Row() {
-            Text('取消')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.TEXT_SECONDARY)
-              .layoutWeight(1)
-              .textAlign(TextAlign.Center)
-              .onClick(() => {
-                this.showAddBlacklistDialog = false;
-              })
-
-            Text('添加')
-              .fontSize(ThemeTokens.FONT_SIZE_BODY)
-              .fontColor(ThemeTokens.PRIMARY)
-              .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-              .layoutWeight(1)
-              .textAlign(TextAlign.Center)
-              .onClick(() => {
-                this.confirmAddBlacklist();
-              })
           }
-          .width('100%')
-          .margin({ top: ThemeTokens.SPACING_MD })
+          .width('85%')
+          .padding(ThemeTokens.SPACING_LG)
+          .backgroundColor(ThemeTokens.SURFACE)
+          .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
         }
-        .width('85%')
-        .padding(ThemeTokens.SPACING_LG)
-        .backgroundColor(ThemeTokens.SURFACE)
-        .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
-        .onClick(() => {})
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .backgroundColor(0x80000000)
+        .onClick(() => {
+          this.showAddCategoryDialog = false;
+        })
       }
-      .width('100%')
-      .height('100%')
-      .justifyContent(FlexAlign.Center)
-      .alignItems(HorizontalAlign.Center)
-      .backgroundColor(0x80000000)
-      .onClick(() => {
-        this.showAddBlacklistDialog = false;
-      })
-    }
     } // Stack
   }
 
+  // ── Builders ──
+
   @Builder
-  SectionHeader(title: string) {
-    Row() {
-      Text(title)
-        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-        .fontColor(ThemeTokens.TEXT_TERTIARY)
-        .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-    }
-    .width('100%')
-    .padding({ left: ThemeTokens.SPACING_LG, top: ThemeTokens.SPACING_MD,
-      bottom: ThemeTokens.SPACING_XS })
+  SectionLabel(title: string) {
+    Text(title)
+      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+      .fontColor(ThemeTokens.TEXT_TERTIARY)
+      .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+      .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
   }
 
   @Builder
-  SectionDivider() {
-    Row() {}
+  CardDivider() {
+    Row()
       .width('100%')
-      .height(ThemeTokens.SPACING_SM)
-      .margin({ top: ThemeTokens.SPACING_SM })
+      .height(0.5)
+      .backgroundColor(ThemeTokens.DIVIDER)
+      .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
   }
 
   @Builder
@@ -608,19 +463,26 @@ export struct SettingsPage {
   }
 
   @Builder
-  SettingsCardRow(icon: string, title: string, subtitle: string, type: string, isOn: boolean, value: string,
+  SettingsCardRow(icon: ResourceStr, title: string, subtitle: string, type: string, isOn: boolean, value: string,
     key: string) {
     Row() {
       // Icon
       Row() {
-        Text(icon)
-          .fontSize(18)
+        if (typeof icon === 'string') {
+          Text(icon)
+            .fontSize(18)
+        } else {
+          Image(icon as Resource)
+            .width(20)
+            .height(20)
+            .objectFit(ImageFit.Contain)
+        }
       }
-        .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-        .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-        .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
-        .backgroundColor(ThemeTokens.BACKGROUND)
-        .justifyContent(FlexAlign.Center)
+      .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+      .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+      .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
+      .backgroundColor(ThemeTokens.BACKGROUND)
+      .justifyContent(FlexAlign.Center)
 
       // Text
       Column() {
@@ -645,8 +507,40 @@ export struct SettingsPage {
           .selectedColor(ThemeTokens.PRIMARY)
           .onChange((checked: boolean) => {
             if (key === 'recording' && this.viewModel) {
-              this.isPrivacyMode = !checked;
-              this.viewModel.togglePrivacyMode();
+              const newValue = !checked;
+              this.isPrivacyMode = newValue;
+              this.viewModel.setPrivacyMode(newValue);
+            } else if (key === 'biometric' && this.viewModel) {
+              if (checked) {
+                let hasBio = false;
+                try {
+                  userAuth.getAvailableStatus(userAuth.UserAuthType.FACE, userAuth.AuthTrustLevel.ATL1);
+                  hasBio = true;
+                } catch (e) {
+                  // face not available
+                }
+                if (!hasBio) {
+                  try {
+                    userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT, userAuth.AuthTrustLevel.ATL1);
+                    hasBio = true;
+                  } catch (e) {
+                    // fingerprint not available
+                  }
+                }
+                if (!hasBio) {
+                  this.isBiometricEnabled = false;
+                  AlertDialog.show({
+                    title: '无法开启',
+                    message: '未检测到人脸或指纹，请先在系统设置中录入。',
+                    autoCancel: true,
+                    alignment: DialogAlignment.Center,
+                    buttons: [{ value: '知道了', action: () => {} }]
+                  });
+                  return;
+                }
+              }
+              this.isBiometricEnabled = checked;
+              this.viewModel.setBiometricEnabled(checked);
             }
           })
       } else if (type === 'navigate') {
@@ -667,8 +561,10 @@ export struct SettingsPage {
   @Builder
   SettingsFooter() {
     Column() {
-      Text('📋')
-        .fontSize(32)
+      Image($r('app.media.card'))
+        .width(32)
+        .height(32)
+        .objectFit(ImageFit.Contain)
         .margin({ bottom: ThemeTokens.SPACING_XS })
 
       Text('ClipBridge v1.0.0')
@@ -679,6 +575,61 @@ export struct SettingsPage {
     .padding({ top: ThemeTokens.SPACING_XL, bottom: ThemeTokens.SPACING_XL })
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
+  }
+
+  // ── Private methods ──
+
+  private onBiometricToggleClicked(): void {
+    if (!this.viewModel) {
+      return;
+    }
+    if (this.isBiometricEnabled) {
+      // Currently ON → turn OFF
+      this.isBiometricEnabled = false;
+      this.viewModel.setBiometricEnabled(false);
+      return;
+    }
+    // Currently OFF → check biometric before turning ON
+    let hasBiometric = false;
+    try {
+      userAuth.getAvailableStatus(userAuth.UserAuthType.FACE, userAuth.AuthTrustLevel.ATL1);
+      hasBiometric = true;
+    } catch (e) {
+      hilog.info(0x0000, '[SettingsPage]', 'Face auth not available');
+    }
+    if (!hasBiometric) {
+      try {
+        userAuth.getAvailableStatus(userAuth.UserAuthType.FINGERPRINT, userAuth.AuthTrustLevel.ATL1);
+        hasBiometric = true;
+      } catch (e) {
+        hilog.info(0x0000, '[SettingsPage]', 'Fingerprint auth not available');
+      }
+    }
+    if (!hasBiometric) {
+      AlertDialog.show({
+        title: '无法开启',
+        message: '未检测到人脸或指纹，请先在系统设置中录入。',
+        autoCancel: true,
+        alignment: DialogAlignment.Center,
+        buttons: [
+          { value: '取消', action: () => {} },
+          {
+            value: '去设置',
+            action: () => {
+              const context = AppContext.getContext() as common.UIAbilityContext;
+              context.startAbility({
+                bundleName: 'com.huawei.hmos.settings',
+                abilityName: 'com.huawei.hmos.settings.MainAbility',
+                uri: 'biometrics_and_password_settings'
+              }).catch(() => {});
+            }
+          }
+        ]
+      });
+      return;
+    }
+    this.isBiometricEnabled = true;
+    this.viewModel.setBiometricEnabled(true);
   }
 
   private showClearDataConfirm(): void {
@@ -702,67 +653,6 @@ export struct SettingsPage {
         }
       ]
     });
-  }
-
-  private showAddBlacklist(): void {
-    this.newBundleName = '';
-    this.newAppName = '';
-    this.showAddBlacklistDialog = true;
-  }
-
-  private async confirmAddBlacklist(): Promise<void> {
-    const bundleName: string = this.newBundleName.trim();
-    if (!bundleName) {
-      return;
-    }
-    const appName: string = this.newAppName.trim() || bundleName;
-    if (this.viewModel) {
-      await this.viewModel.addToBlacklist(bundleName, appName);
-    }
-    this.showAddBlacklistDialog = false;
-    this.newBundleName = '';
-    this.newAppName = '';
-    await this.loadSettings();
-  }
-
-  /**
-   * Swipe-to-delete builder for category list items.
-   */
-  @Builder
-  deleteCategorySwipeAction(cat: CustomCategory) {
-    Row() {
-      Text('删除')
-        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-        .fontColor(Color.White)
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-    }
-    .height('100%')
-    .backgroundColor(ThemeTokens.ERROR)
-    .justifyContent(FlexAlign.Center)
-    .alignItems(VerticalAlign.Center)
-    .onClick(() => {
-      this.onDeleteCategory(cat.id);
-    })
-  }
-
-  /**
-   * Swipe-to-delete builder for blacklist list items.
-   */
-  @Builder
-  deleteBlacklistSwipeAction(entry: AppBlacklistEntry) {
-    Row() {
-      Text('删除')
-        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-        .fontColor(Color.White)
-        .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
-    }
-    .height('100%')
-    .backgroundColor(ThemeTokens.ERROR)
-    .justifyContent(FlexAlign.Center)
-    .alignItems(VerticalAlign.Center)
-    .onClick(() => {
-      this.removeBlacklistEntry(entry.id);
-    })
   }
 
   private showAddCategory(): void {
@@ -802,17 +692,25 @@ export struct SettingsPage {
     });
   }
 
-  private async onDeleteCategory(id: number): Promise<void> {
-    if (this.viewModel) {
-      await this.viewModel.deleteCategory(id);
-      await this.loadSettings();
-    }
+  private onDeleteCategoryConfirm(cat: CustomCategory): void {
+    AlertDialog.show({
+      title: '删除收藏夹',
+      message: `确定要删除「${cat.name}」吗？该收藏夹下的条目不会被删除。`,
+      autoCancel: true,
+      alignment: DialogAlignment.Center,
+      buttons: [
+        { value: '取消', action: () => {} },
+        {
+          value: '删除',
+          action: async () => {
+            if (this.viewModel) {
+              await this.viewModel.deleteCategory(cat.id);
+              await this.loadSettings();
+            }
+          }
+        }
+      ]
+    });
   }
 
-  private async removeBlacklistEntry(id: number): Promise<void> {
-    if (this.viewModel) {
-      await this.viewModel.removeFromBlacklist(id);
-      await this.loadSettings();
-    }
-  }
 }

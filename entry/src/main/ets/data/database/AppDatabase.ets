@@ -78,18 +78,9 @@ export class AppDatabase {
         PRIMARY KEY (entry_id, category_id)
       )`;
 
-    const createAppBlacklistEntry: string = `
-      CREATE TABLE IF NOT EXISTS app_blacklist_entry (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        bundle_name TEXT NOT NULL UNIQUE,
-        app_name TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      )`;
-
     await this.rdbStore.executeSql(createClipboardEntry);
     await this.rdbStore.executeSql(createCustomCategory);
     await this.rdbStore.executeSql(createEntryCategoryRelation);
-    await this.rdbStore.executeSql(createAppBlacklistEntry);
 
     await this.createIndexes();
     await this.runMigrations();

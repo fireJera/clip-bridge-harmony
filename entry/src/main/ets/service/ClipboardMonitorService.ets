@@ -13,7 +13,6 @@ import { ImageStorageService } from './ImageStorageService';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { AppConstants } from '../common/constants/AppConstants';
 import { AppContext } from '../common/utils/AppContext';
-import { BlacklistDao } from '../data/database/BlacklistDao';
 
 const TAG: string = '[ClipboardMonitor]';
 const DOMAIN: number = 0x0000;
@@ -41,7 +40,6 @@ export class ClipboardMonitorService {
   private typeDetector: ContentTypeDetector;
   private dedupService: DeduplicationService;
   private encryptionService: EncryptionService;
-  private blacklistDao: BlacklistDao | null;
   private imageStorageService: ImageStorageService | null;
   private systemPasteboard: pasteboard.SystemPasteboard;
   private isMonitoring: boolean = false;
@@ -51,14 +49,12 @@ export class ClipboardMonitorService {
   constructor(
     repo: IClipboardRepository,
     encryptionService: EncryptionService,
-    blacklistDao: BlacklistDao | null = null,
     imageStorageService: ImageStorageService | null = null
   ) {
     this.repo = repo;
     this.typeDetector = new ContentTypeDetector();
     this.dedupService = new DeduplicationService(repo);
     this.encryptionService = encryptionService;
-    this.blacklistDao = blacklistDao;
     this.imageStorageService = imageStorageService;
     this.systemPasteboard = pasteboard.getSystemPasteboard();
   }
@@ -309,29 +305,6 @@ export class ClipboardMonitorService {
       }
 
       hilog.info(DOMAIN, TAG, 'onClipboardUpdate: processing content, preview=%{public}s', content.substring(0, 30));
-
-      // 2b. Check blacklist: skip if source app is blacklisted
-      if (this.blacklistDao) {
-        const prop: pasteboard.PasteDataProperty = pasteData.getProperty();
-        let sourceApp: string = '';
-        if (prop.additions) {
-          const appValue = prop.additions['sourceApp'];
-          if (appValue) {
-            sourceApp = String(appValue);
-          }
-        }
-        if (sourceApp) {
-          try {
-            const isBlocked: boolean = await this.blacklistDao.isBlacklisted(sourceApp);
-            if (isBlocked) {
-              console.info(`${TAG} Skipped blacklisted source app: ${sourceApp}`);
-              return;
-            }
-          } catch (err) {
-            console.warn(`${TAG} Blacklist check failed, proceeding with capture: ${err}`);
-          }
-        }
-      }
 
       // 3. Detect content type
       const contentType: ContentType = this.typeDetector.detect(content, mimeType);
