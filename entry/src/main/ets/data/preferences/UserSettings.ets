@@ -85,7 +85,7 @@ export class UserSettings {
 
   async isBiometricEnabled(): Promise<boolean> {
     const p = this.getPrefs();
-    return await p.get(UserSettings.KEY_BIOMETRIC_ENABLED, true) as boolean;
+    return await p.get(UserSettings.KEY_BIOMETRIC_ENABLED, false) as boolean;
   }
 
   async setBiometricEnabled(enabled: boolean): Promise<void> {

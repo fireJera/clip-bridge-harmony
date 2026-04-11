@@ -181,6 +181,12 @@ export struct HistoryPage {
         .width('100%')
         .layoutWeight(1)
         .edgeEffect(EdgeEffect.Spring)
+        .onReachEnd(async () => {
+          if (this.viewModel) {
+            await this.viewModel.loadMore();
+            this.syncState();
+          }
+        })
       }
 
       // Selection mode bottom action bar

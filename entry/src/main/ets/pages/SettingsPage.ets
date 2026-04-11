@@ -82,245 +82,249 @@ export struct SettingsPage {
 
   build() {
     Stack() {
-      Scroll() {
-        Column() {
-          // Hero branding
-          this.HeroBranding()
+      Column() {
+        // Hero branding — fixed at top, outside Scroll
+        this.HeroBranding()
 
-          // ── 录制管理 ──
-          this.SectionLabel('录制管理')
+        Scroll() {
           Column() {
-            // 自动记录 — Toggle 内联绑定 @State，避免 @Builder 值参数导致响应式丢失
-            Row() {
+            // ── 录制管理 ──
+            this.SectionLabel('录制管理')
+            Column() {
+              // 自动记录 — Toggle 内联绑定 @State，避免 @Builder 值参数导致响应式丢失
               Row() {
-                Image($r('app.media.card'))
-                  .width(20)
-                  .height(20)
-                  .objectFit(ImageFit.Contain)
+                Row() {
+                  Image($r('app.media.card'))
+                    .width(20)
+                    .height(20)
+                    .objectFit(ImageFit.Contain)
+                }
+                .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+                .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+                .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
+                .backgroundColor(ThemeTokens.BACKGROUND)
+                .justifyContent(FlexAlign.Center)
+
+                Column() {
+                  Text('自动记录')
+                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                    .fontColor(ThemeTokens.TEXT_PRIMARY)
+                  Text('监听并记录剪贴板内容')
+                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                    .fontColor(ThemeTokens.TEXT_TERTIARY)
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .margin({ left: ThemeTokens.SPACING_MD })
+                .layoutWeight(1)
+
+                Toggle({ type: ToggleType.Switch, isOn: !this.isPrivacyMode })
+                  .selectedColor(ThemeTokens.PRIMARY)
+                  .onChange((checked: boolean) => {
+                    if (this.viewModel) {
+                      this.isPrivacyMode = !checked;
+                      this.viewModel.setPrivacyMode(!checked);
+                    }
+                  })
               }
-              .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-              .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-              .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
-              .backgroundColor(ThemeTokens.BACKGROUND)
-              .justifyContent(FlexAlign.Center)
+              .width('100%')
+              .padding(ThemeTokens.SPACING_MD)
+              .alignItems(VerticalAlign.Center)
+
+              this.CardDivider()
 
               Column() {
-                Text('自动记录')
-                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                  .fontColor(ThemeTokens.TEXT_PRIMARY)
-                Text('监听并记录剪贴板内容')
-                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                  .fontColor(ThemeTokens.TEXT_TERTIARY)
-                  .margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start)
-              .margin({ left: ThemeTokens.SPACING_MD })
-              .layoutWeight(1)
+                Row() {
+                  Text('历史记录上限')
+                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                    .fontColor(ThemeTokens.TEXT_PRIMARY)
+                    .layoutWeight(1)
 
-              Toggle({ type: ToggleType.Switch, isOn: !this.isPrivacyMode })
-                .selectedColor(ThemeTokens.PRIMARY)
-                .onChange((checked: boolean) => {
-                  if (this.viewModel) {
-                    this.isPrivacyMode = !checked;
-                    this.viewModel.setPrivacyMode(!checked);
-                  }
+                  Text(`${this.historyLimit}`)
+                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                    .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+                    .fontColor(ThemeTokens.PRIMARY)
+                }
+                .width('100%')
+
+                Slider({
+                  value: this.historyLimit,
+                  min: AppConstants.MIN_HISTORY_LIMIT,
+                  max: AppConstants.MAX_HISTORY_LIMIT,
+                  step: 50,
+                  style: SliderStyle.OutSet
                 })
+                  .width('100%')
+                  .blockColor(ThemeTokens.PRIMARY)
+                  .trackColor(ThemeTokens.DIVIDER)
+                  .selectedColor(ThemeTokens.PRIMARY)
+                  .onChange((value: number) => {
+                    this.historyLimit = Math.round(value);
+                    if (this.viewModel) {
+                      this.viewModel.updateHistoryLimit(this.historyLimit);
+                    }
+                  })
+              }
+              .width('100%')
+              .padding(ThemeTokens.SPACING_MD)
             }
-            .width('100%')
-            .padding(ThemeTokens.SPACING_MD)
-            .alignItems(VerticalAlign.Center)
+            .backgroundColor(ThemeTokens.SURFACE)
+            .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+            .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
 
-            this.CardDivider()
+            // ── 安全 ──
+            this.SectionLabel('安全')
+            Column() {
+              // 生物识别 — Toggle 内联绑定 @State
+              Row() {
+                Row() {
+                  Text('🔒')
+                    .fontSize(18)
+                }
+                .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+                .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
+                .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
+                .backgroundColor(ThemeTokens.BACKGROUND)
+                .justifyContent(FlexAlign.Center)
 
+                Column() {
+                  Text('生物识别验证')
+                    .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                    .fontColor(ThemeTokens.TEXT_PRIMARY)
+                  Text('从后台返回时需要验证身份')
+                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                    .fontColor(ThemeTokens.TEXT_TERTIARY)
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .margin({ left: ThemeTokens.SPACING_MD })
+                .layoutWeight(1)
+
+                Toggle({ type: ToggleType.Switch, isOn: this.isBiometricEnabled })
+                  .selectedColor(ThemeTokens.PRIMARY)
+                  .hitTestBehavior(HitTestMode.None)
+              }
+              .width('100%')
+              .padding(ThemeTokens.SPACING_MD)
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => {
+                this.onBiometricToggleClicked();
+              })
+            }
+            .backgroundColor(ThemeTokens.SURFACE)
+            .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+            .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+
+            // ── 收藏夹管理 ──
+            this.SectionLabel('收藏夹管理')
             Column() {
               Row() {
-                Text('历史记录上限')
-                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                  .fontColor(ThemeTokens.TEXT_PRIMARY)
+                Text('管理自定义收藏夹')
+                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                  .fontColor(ThemeTokens.TEXT_TERTIARY)
                   .layoutWeight(1)
 
-                Text(`${this.historyLimit}`)
-                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                  .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+                Text('添加')
+                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
                   .fontColor(ThemeTokens.PRIMARY)
+                  .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
+                  .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
+                  .onClick(() => {
+                    this.showAddCategory();
+                  })
               }
               .width('100%')
+              .padding(ThemeTokens.SPACING_MD)
+              .alignItems(VerticalAlign.Center)
 
-              Slider({
-                value: this.historyLimit,
-                min: AppConstants.MIN_HISTORY_LIMIT,
-                max: AppConstants.MAX_HISTORY_LIMIT,
-                step: 50,
-                style: SliderStyle.OutSet
-              })
-                .width('100%')
-                .blockColor(ThemeTokens.PRIMARY)
-                .trackColor(ThemeTokens.DIVIDER)
-                .selectedColor(ThemeTokens.PRIMARY)
-                .onChange((value: number) => {
-                  this.historyLimit = Math.round(value);
-                  if (this.viewModel) {
-                    this.viewModel.updateHistoryLimit(this.historyLimit);
+              if (this.categories.length > 0) {
+                ForEach(this.categories, (cat: CustomCategory) => {
+                  Column() {
+                    this.CardDivider()
+                    Row() {
+                      Text('')
+                        .width(12)
+                        .height(12)
+                        .borderRadius(6)
+                        .backgroundColor(cat.color || ThemeTokens.PRIMARY)
+                        .margin({ right: ThemeTokens.SPACING_MD })
+
+                      Text(cat.name)
+                        .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                        .fontColor(ThemeTokens.TEXT_PRIMARY)
+                        .layoutWeight(1)
+
+                      Text('重命名')
+                        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                        .fontColor(ThemeTokens.PRIMARY)
+                        .margin({ right: ThemeTokens.SPACING_MD })
+                        .onClick(() => {
+                          this.showRenameCategory(cat);
+                        })
+
+                      Text(`${cat.entryCount} 条`)
+                        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                        .fontColor(ThemeTokens.TEXT_TERTIARY)
+                        .margin({ right: ThemeTokens.SPACING_SM })
+
+                      Text('删除')
+                        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                        .fontColor(ThemeTokens.ERROR)
+                        .onClick(() => {
+                          this.onDeleteCategoryConfirm(cat);
+                        })
+                    }
+                    .width('100%')
+                    .padding(ThemeTokens.SPACING_MD)
+                    .alignItems(VerticalAlign.Center)
                   }
-                })
-            }
-            .width('100%')
-            .padding(ThemeTokens.SPACING_MD)
-          }
-          .backgroundColor(ThemeTokens.SURFACE)
-          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-
-          // ── 安全 ──
-          this.SectionLabel('安全')
-          Column() {
-            // 生物识别 — Toggle 内联绑定 @State
-            Row() {
-              Row() {
-                Text('🔒')
-                  .fontSize(18)
-              }
-              .width(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-              .height(ThemeTokens.SETTINGS_ICON_BG_SIZE)
-              .borderRadius(ThemeTokens.SETTINGS_ICON_BG_RADIUS)
-              .backgroundColor(ThemeTokens.BACKGROUND)
-              .justifyContent(FlexAlign.Center)
-
-              Column() {
-                Text('生物识别验证')
-                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                  .fontColor(ThemeTokens.TEXT_PRIMARY)
-                Text('从后台返回时需要验证身份')
-                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                  .fontColor(ThemeTokens.TEXT_TERTIARY)
-                  .margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start)
-              .margin({ left: ThemeTokens.SPACING_MD })
-              .layoutWeight(1)
-
-              Toggle({ type: ToggleType.Switch, isOn: this.isBiometricEnabled })
-                .selectedColor(ThemeTokens.PRIMARY)
-                .hitTestBehavior(HitTestMode.None)
-            }
-            .width('100%')
-            .padding(ThemeTokens.SPACING_MD)
-            .alignItems(VerticalAlign.Center)
-            .onClick(() => {
-              this.onBiometricToggleClicked();
-            })
-          }
-          .backgroundColor(ThemeTokens.SURFACE)
-          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-
-          // ── 收藏夹管理 ──
-          this.SectionLabel('收藏夹管理')
-          Column() {
-            Row() {
-              Text('管理自定义收藏夹')
-                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                .fontColor(ThemeTokens.TEXT_TERTIARY)
-                .layoutWeight(1)
-
-              Text('添加')
-                .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                .fontColor(ThemeTokens.PRIMARY)
-                .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-                .padding({ left: ThemeTokens.SPACING_SM, right: ThemeTokens.SPACING_SM })
-                .onClick(() => {
-                  this.showAddCategory();
-                })
-            }
-            .width('100%')
-            .padding(ThemeTokens.SPACING_MD)
-            .alignItems(VerticalAlign.Center)
-
-            if (this.categories.length > 0) {
-              ForEach(this.categories, (cat: CustomCategory) => {
-                Column() {
-                  this.CardDivider()
-                  Row() {
-                    Text('')
-                      .width(12)
-                      .height(12)
-                      .borderRadius(6)
-                      .backgroundColor(cat.color || ThemeTokens.PRIMARY)
-                      .margin({ right: ThemeTokens.SPACING_MD })
-
-                    Text(cat.name)
-                      .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                      .fontColor(ThemeTokens.TEXT_PRIMARY)
-                      .layoutWeight(1)
-
-                    Text('重命名')
-                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                      .fontColor(ThemeTokens.PRIMARY)
-                      .margin({ right: ThemeTokens.SPACING_MD })
-                      .onClick(() => {
-                        this.showRenameCategory(cat);
-                      })
-
-                    Text(`${cat.entryCount} 条`)
-                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                      .fontColor(ThemeTokens.TEXT_TERTIARY)
-                      .margin({ right: ThemeTokens.SPACING_SM })
-
-                    Text('删除')
-                      .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                      .fontColor(ThemeTokens.ERROR)
-                      .onClick(() => {
-                        this.onDeleteCategoryConfirm(cat);
-                      })
-                  }
-                  .width('100%')
-                  .padding(ThemeTokens.SPACING_MD)
-                  .alignItems(VerticalAlign.Center)
+                }, (cat: CustomCategory) => `settings_cat_${cat.id}_${cat.entryCount}`)
+              } else {
+                this.CardDivider()
+                Row() {
+                  Text('暂无收藏夹')
+                    .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+                    .fontColor(ThemeTokens.TEXT_TERTIARY)
                 }
-              }, (cat: CustomCategory) => `settings_cat_${cat.id}_${cat.entryCount}`)
-            } else {
+                .width('100%')
+                .padding({ left: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_SM,
+                  top: ThemeTokens.SPACING_XS })
+              }
+            }
+            .backgroundColor(ThemeTokens.SURFACE)
+            .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+            .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+
+            // ── 关于 ──
+            this.SectionLabel('关于')
+            Column() {
+              this.SettingsCardRow('ℹ️', '版本', '', 'display', false, this.appVersion, 'version')
+
               this.CardDivider()
+
               Row() {
-                Text('暂无收藏夹')
-                  .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-                  .fontColor(ThemeTokens.TEXT_TERTIARY)
+                Text('清除所有数据')
+                  .fontSize(ThemeTokens.FONT_SIZE_BODY)
+                  .fontColor(ThemeTokens.ERROR)
+                  .layoutWeight(1)
               }
               .width('100%')
-              .padding({ left: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_SM,
-                top: ThemeTokens.SPACING_XS })
+              .padding(ThemeTokens.SPACING_MD)
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => {
+                this.showClearDataConfirm();
+              })
             }
+            .backgroundColor(ThemeTokens.SURFACE)
+            .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
+            .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
+
           }
-          .backgroundColor(ThemeTokens.SURFACE)
-          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-
-          // ── 关于 ──
-          this.SectionLabel('关于')
-          Column() {
-            this.SettingsCardRow('ℹ️', '版本', '', 'display', false, this.appVersion, 'version')
-
-            this.CardDivider()
-
-            Row() {
-              Text('清除所有数据')
-                .fontSize(ThemeTokens.FONT_SIZE_BODY)
-                .fontColor(ThemeTokens.ERROR)
-                .layoutWeight(1)
-            }
-            .width('100%')
-            .padding(ThemeTokens.SPACING_MD)
-            .alignItems(VerticalAlign.Center)
-            .onClick(() => {
-              this.showClearDataConfirm();
-            })
-          }
-          .backgroundColor(ThemeTokens.SURFACE)
-          .borderRadius(ThemeTokens.SETTINGS_GROUP_RADIUS)
-          .margin({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-
-          // Footer
-          this.SettingsFooter()
+          .width('100%')
         }
+        .layoutWeight(1)
+        .width('100%')
+        .edgeEffect(EdgeEffect.Spring)
       }
       .width('100%')
       .height('100%')
@@ -432,7 +436,7 @@ export struct SettingsPage {
       .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
       .fontColor(ThemeTokens.TEXT_TERTIARY)
       .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
-      .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_XS })
+      .padding({ left: ThemeTokens.SPACING_MD, top: ThemeTokens.SPACING_SM, bottom: ThemeTokens.SPACING_XS })
   }
 
   @Builder
@@ -447,8 +451,8 @@ export struct SettingsPage {
   @Builder
   HeroBranding() {
     Column() {
-      Text('ClipBridge Pro')
-        .fontSize(28)
+      Text('鹊桥')
+        .fontSize(ThemeTokens.FONT_SIZE_TITLE)
         .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
         .fontColor(ThemeTokens.TEXT_PRIMARY)
 
@@ -458,7 +462,7 @@ export struct SettingsPage {
         .margin({ top: ThemeTokens.SPACING_XS })
     }
     .width('100%')
-    .padding({ left: ThemeTokens.SPACING_LG, top: ThemeTokens.SPACING_MD, bottom: ThemeTokens.SPACING_MD })
+    .padding({ left: ThemeTokens.SPACING_LG, top: ThemeTokens.SPACING_SM, bottom: 0 })
     .alignItems(HorizontalAlign.Start)
   }
 
@@ -558,25 +562,6 @@ export struct SettingsPage {
     .alignItems(VerticalAlign.Center)
   }
 
-  @Builder
-  SettingsFooter() {
-    Column() {
-      Image($r('app.media.card'))
-        .width(32)
-        .height(32)
-        .objectFit(ImageFit.Contain)
-        .margin({ bottom: ThemeTokens.SPACING_XS })
-
-      Text('ClipBridge v1.0.0')
-        .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
-        .fontColor(ThemeTokens.TEXT_TERTIARY)
-    }
-    .width('100%')
-    .padding({ top: ThemeTokens.SPACING_XL, bottom: ThemeTokens.SPACING_XL })
-    .justifyContent(FlexAlign.Center)
-    .alignItems(HorizontalAlign.Center)
-  }
-
   // ── Private methods ──
 
   private onBiometricToggleClicked(): void {
@@ -645,9 +630,10 @@ export struct SettingsPage {
         },
         {
           value: '清除',
-          action: () => {
+          action: async () => {
             if (this.viewModel) {
-              this.viewModel.clearAllData();
+              await this.viewModel.clearAllData();
+              await this.loadCategories();
             }
           }
         }

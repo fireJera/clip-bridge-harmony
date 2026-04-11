@@ -108,6 +108,8 @@ export class SettingsViewModel {
   async clearAllData(): Promise<void> {
     try {
       await this.clipboardRepo.deleteAll();
+      await this.categoryRepo.deleteAllRelations();
+      AppContext.notifyDataChanged();
     } catch (error) {
       console.error('[SettingsViewModel] Failed to clear all data: ' + JSON.stringify(error));
     }

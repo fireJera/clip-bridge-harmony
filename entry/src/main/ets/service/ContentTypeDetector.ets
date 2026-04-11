@@ -98,12 +98,36 @@ export class ContentTypeDetector {
 
   /**
    * Checks whether the string looks like a Chinese address.
-   * Requires at least 2 Chinese address keywords (province, city, district,
-   * road, street, etc.) and a minimum length of 6 characters.
+   * Uses contextual patterns to avoid false positives from words like
+   * "本市", "公司", "渠道" etc. which contain address-like characters
+   * but are not addresses.
    */
   private isAddress(s: string): boolean {
-    const addressKeywordPattern = /省|市|区|县|路|街|道|号|楼|室|镇|乡|村/g;
-    const matches = s.match(addressKeywordPattern);
-    return matches !== null && matches.length >= 2 && s.length > 6;
+    // High-confidence patterns: province/city/district followed by more address parts
+    const highConfidence = /(?:省|自治区|直辖市)[^，。；！？\n]{1,20}(?:市|区|县|路|街|道|号)/;
+    if (highConfidence.test(s)) {
+      return true;
+    }
+    // City-level address: e.g. "北京市朝阳区", "深圳市南山区科技路"
+    const cityAddress = /(?:省|市)[^，。；！？\n]{1,15}(?:区|县)[^，。；！？\n]{1,15}(?:路|街|道|镇|乡)/;
+    if (cityAddress.test(s)) {
+      return true;
+    }
+    // Road/street with number: e.g. "科技路1号", "中山大道88号"
+    const roadWithNumber = /(?:路|街|大道)[\d]+号/;
+    if (roadWithNumber.test(s)) {
+      return true;
+    }
+    // Building/room: e.g. "xx路xx号xx楼xx室"
+    const buildingRoom = /(?:路|街|号)[^，。；！？\n]{0,10}楼[^，。；！？\n]{0,10}室/;
+    if (buildingRoom.test(s)) {
+      return true;
+    }
+    // Village: "xx省xx市xx村" or "xx镇xx村"
+    const village = /(?:镇|乡|县)[^，。；！？\n]{1,15}村/;
+    if (village.test(s)) {
+      return true;
+    }
+    return false;
   }
 }

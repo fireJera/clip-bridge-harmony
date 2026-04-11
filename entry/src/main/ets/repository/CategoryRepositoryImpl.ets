@@ -113,4 +113,8 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
       throw new Error(`Failed to count entries in any folder: ${error}`);
     }
   }
+
+  async deleteAllRelations(): Promise<void> {
+    await this.dao.deleteAllRelations();
+  }
 }

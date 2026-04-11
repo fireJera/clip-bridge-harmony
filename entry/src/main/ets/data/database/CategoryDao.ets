@@ -205,6 +205,15 @@ export class CategoryDao {
     }
   }
 
+  async deleteAllRelations(): Promise<void> {
+    try {
+      const predicates = new relationalStore.RdbPredicates('entry_category_relation');
+      await this.store.delete(predicates);
+    } catch (error) {
+      throw new Error(`Failed to delete all relations: ${error}`);
+    }
+  }
+
   async getTagsForEntry(entryId: number): Promise<CustomCategory[]> {
     try {
       const sql: string =
