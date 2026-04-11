@@ -162,37 +162,24 @@ export struct HistoryPage {
         List({ space: 0 }) {
           ForEach(this.entries, (entry: ClipboardEntry) => {
             ListItem() {
-              Row() {
-                if (this.isSelectionMode) {
-                  Checkbox()
-                    .select(this.selectedIds.has(entry.id))
-                    .onChange((isChecked: boolean) => {
-                      this.toggleSelection(entry.id);
-                    })
-                    .margin({ right: ThemeTokens.SPACING_MD })
-                }
-
-                ClipboardListItem({
-                  entry: entry,
-                  onItemClick: (e: ClipboardEntry) => {
-                    if (this.isSelectionMode) {
-                      this.toggleSelection(e.id);
-                    } else {
-                      this.onItemClick(e);
-                    }
-                  },
-                  onItemLongPress: (e: ClipboardEntry) => this.onItemLongPress(e),
-                  onItemFavorite: (e: ClipboardEntry) => this.onItemFavorite(e)
-                })
-              }
-              .width('100%')
+              ClipboardListItem({
+                entry: entry,
+                onItemClick: (e: ClipboardEntry) => {
+                  if (this.isSelectionMode) {
+                    this.toggleSelection(e.id);
+                  } else {
+                    this.onItemClick(e);
+                  }
+                },
+                onItemLongPress: (e: ClipboardEntry) => this.onItemLongPress(e),
+                onItemPin: (e: ClipboardEntry) => this.onItemPin(e)
+              })
             }
             .swipeAction({ end: this.deleteSwipeAction(entry) })
-          }, (entry: ClipboardEntry) => `${entry.id}_${entry.isFavorite}`)
+          }, (entry: ClipboardEntry) => `${entry.id}_${entry.isPinned}_${entry.tags?.length ?? 0}_${entry.note}_${entry.contentPreview.length}_${entry.updatedAt}`)
         }
         .width('100%')
         .layoutWeight(1)
-        .divider({ strokeWidth: 0.5, color: ThemeTokens.DIVIDER })
         .edgeEffect(EdgeEffect.Spring)
       }
 
@@ -292,20 +279,20 @@ export struct HistoryPage {
     }
   }
 
-  private onItemFavorite(entry: ClipboardEntry): void {
+  private onItemPin(entry: ClipboardEntry): void {
     if (!this.viewModel) return;
-    const newFav: boolean = !entry.isFavorite;
+    const newPin: boolean = !entry.isPinned;
 
     // Show toast
     promptAction.showToast({
-      message: newFav ? '已收藏并置顶' : '已取消收藏',
+      message: newPin ? '已置顶' : '已取消置顶',
       duration: 1500
     });
 
     // Persist to DB
-    this.viewModel.updateFavorite(entry.id, newFav).then(async () => {
-      if (newFav) {
-        // 收藏：乐观置顶，跳过下次刷新避免覆盖本地状态
+    this.viewModel.updatePin(entry.id, newPin).then(async () => {
+      if (newPin) {
+        // 置顶：乐观更新，跳过下次刷新避免覆盖本地状态
         this.skipNextRefresh = true;
         const updated: ClipboardEntry = new ClipboardEntry();
         updated.id = entry.id;
@@ -317,10 +304,10 @@ export struct HistoryPage {
         updated.thumbnailPath = entry.thumbnailPath;
         updated.contentSize = entry.contentSize;
         updated.sourceApp = entry.sourceApp;
-        updated.isPinned = entry.isPinned;
-        updated.isFavorite = true;
-        updated.pinnedAt = entry.pinnedAt;
-        updated.favoritedAt = new Date().toISOString();
+        updated.isPinned = true;
+        updated.isFavorite = entry.isFavorite;
+        updated.pinnedAt = new Date().toISOString();
+        updated.favoritedAt = entry.favoritedAt;
         updated.createdAt = entry.createdAt;
         updated.updatedAt = new Date().toISOString();
         updated.iv = entry.iv;
@@ -332,13 +319,12 @@ export struct HistoryPage {
           this.viewModel.entries = this.entries;
         }
       } else {
-        // 取消收藏：reload 恢复正确排序
+        // 取消置顶：reload 恢复正确排序
         if (this.viewModel) {
           await this.viewModel.loadHistory();
         }
         this.syncState();
       }
-      // 通知其他页面刷新（如收藏页面）
       AppContext.notifyDataChanged();
     });
   }

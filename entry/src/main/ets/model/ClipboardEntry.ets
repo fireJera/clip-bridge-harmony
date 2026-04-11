@@ -59,6 +59,9 @@ export class ClipboardEntry {
   /** AES-256-GCM authentication tag (16 bytes). */
   authTag: Uint8Array = new Uint8Array(0);
 
+  /** User-written note attached to this entry. */
+  note: string = '';
+
   /** Tags loaded separately via CategoryRepository. */
   tags: CustomCategory[] = [];
 

@@ -14,6 +14,7 @@ import { CategoryRepositoryImpl } from '../repository/CategoryRepositoryImpl';
 import { SettingsRepositoryImpl } from '../repository/SettingsRepositoryImpl';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ClipboardMonitorService } from '../service/ClipboardMonitorService';
+import { ImageStorageService } from '../service/ImageStorageService';
 
 const TAG: string = '[EntryAbility]';
 const DOMAIN: number = 0x0000;
@@ -70,7 +71,9 @@ export default class EntryAbility extends UIAbility {
     const dao: ClipboardDao = new ClipboardDao(this.db.getStore());
     const blacklistDao: BlacklistDao = new BlacklistDao(this.db.getStore());
     const categoryDao: CategoryDao = new CategoryDao(this.db.getStore());
-    const repo: IClipboardRepository = new ClipboardRepositoryImpl(dao, encryptionService, userSettings);
+    const imageStorageService = new ImageStorageService(this.context.filesDir);
+    AppContext.setImageStorageService(imageStorageService);
+    const repo: IClipboardRepository = new ClipboardRepositoryImpl(dao, encryptionService, userSettings, imageStorageService);
     const categoryRepo = new CategoryRepositoryImpl(categoryDao);
 
     // Store repos in AppContext for UI access
@@ -84,7 +87,7 @@ export default class EntryAbility extends UIAbility {
 
     // 7. Create and start the clipboard monitor service
     try {
-      this.monitorService = new ClipboardMonitorService(repo, encryptionService, blacklistDao);
+      this.monitorService = new ClipboardMonitorService(repo, encryptionService, blacklistDao, imageStorageService);
       await this.monitorService.start();
       hilog.info(DOMAIN, TAG, 'ClipboardMonitorService started OK');
       // Check current clipboard immediately (onForeground already fired before this)

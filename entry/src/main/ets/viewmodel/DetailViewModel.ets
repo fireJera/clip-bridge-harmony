@@ -1,4 +1,6 @@
 import { pasteboard } from '@kit.BasicServicesKit';
+import { fileIo as fs } from '@kit.CoreFileKit';
+import { image } from '@kit.ImageKit';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { CustomCategory } from '../model/CustomCategory';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
@@ -37,6 +39,7 @@ export class DetailViewModel {
   @Trace isDirty: boolean = false;        // editedContent !== decryptedContent
   @Trace isSaving: boolean = false;       // Save in progress
   @Trace isNotFound: boolean = false;     // Entry was deleted externally
+  @Trace note: string = '';               // User note for this entry
 
   constructor(
     repo: IClipboardRepository,
@@ -57,28 +60,50 @@ export class DetailViewModel {
     this.isLoading = true;
     try {
       this.entry = await this.repo.getById(id);
+      console.info('[DetailViewModel] loadEntry step1 getById OK');
+    } catch (error) {
+      console.error('[DetailViewModel] loadEntry step1 getById FAILED: ' + JSON.stringify(error));
+      this.isLoading = false;
+      return;
+    }
+
+    try {
       if (this.entry === null) {
         this.isNotFound = true;
+        this.isLoading = false;
         return;
       }
       this.isNotFound = false;
-      if (this.entry.contentEncrypted.length > 0) {
-        this.decryptedContent = await this.encryptionService.decrypt({
-          ciphertext: this.entry.contentEncrypted,
-          iv: this.entry.iv,
-          authTag: this.entry.authTag
-        });
-      } else {
-        // Fallback to preview if no encrypted content (edge case)
+
+      // Decrypt content
+      try {
+        if (this.entry.contentEncrypted.length > 0) {
+          this.decryptedContent = await this.encryptionService.decrypt({
+            ciphertext: this.entry.contentEncrypted,
+            iv: this.entry.iv,
+            authTag: this.entry.authTag
+          });
+        } else {
+          this.decryptedContent = this.entry.contentPreview;
+        }
+      } catch (e) {
+        console.error('[DetailViewModel] loadEntry decrypt FAILED: ' + JSON.stringify(e));
         this.decryptedContent = this.entry.contentPreview;
       }
+      console.info('[DetailViewModel] loadEntry decrypt OK');
+
       this.editedContent = this.decryptedContent;
       this.isDirty = false;
+      this.note = this.entry.note ?? '';
+      console.info('[DetailViewModel] loadEntry note="' + this.note + '"');
+
       // Load categories and tags for this entry
       await this.loadCategories();
+      console.info('[DetailViewModel] loadEntry categories OK');
       await this.loadEntryTags(id);
+      console.info('[DetailViewModel] loadEntry tags OK');
     } catch (error) {
-      console.error('[DetailViewModel] Failed to load entry: ' + JSON.stringify(error));
+      console.error('[DetailViewModel] loadEntry step2/3 FAILED: ' + JSON.stringify(error));
     } finally {
       this.isLoading = false;
     }
@@ -89,20 +114,36 @@ export class DetailViewModel {
    * Sets isCopied to true for 2 seconds to provide UI feedback.
    */
   async copyToClipboard(): Promise<void> {
-    if (!this.decryptedContent && !this.entry) {
+    if (!this.entry) {
       return;
     }
 
-    const content: string = this.decryptedContent || this.entry!.contentPreview;
     try {
-      const pasteData: pasteboard.PasteData = pasteboard.createData(
-        pasteboard.MIMETYPE_TEXT_PLAIN,
-        content
-      );
-      await pasteboard.getSystemPasteboard().setData(pasteData);
+      if (this.entry.contentType === 'image') {
+        const imgPath: string = this.entry.imagePath || this.entry.thumbnailPath;
+        if (imgPath) {
+          const file = fs.openSync(imgPath, fs.OpenMode.READ_ONLY);
+          const stat = fs.statSync(imgPath);
+          const buffer = new ArrayBuffer(stat.size);
+          fs.readSync(file.fd, buffer);
+          fs.closeSync(file);
+
+          const imageSource: image.ImageSource = image.createImageSource(buffer);
+          const pixelMap: image.PixelMap = await imageSource.createPixelMap();
+          const pasteData: pasteboard.PasteData = pasteboard.createData(
+            pasteboard.MIMETYPE_PIXELMAP, pixelMap
+          );
+          await pasteboard.getSystemPasteboard().setData(pasteData);
+        }
+      } else {
+        const content: string = this.decryptedContent || this.entry.contentPreview;
+        const pasteData: pasteboard.PasteData = pasteboard.createData(
+          pasteboard.MIMETYPE_TEXT_PLAIN, content
+        );
+        await pasteboard.getSystemPasteboard().setData(pasteData);
+      }
 
       this.isCopied = true;
-      // Reset feedback flag after 2 seconds
       setTimeout((): void => {
         this.isCopied = false;
       }, 2000);
@@ -184,25 +225,23 @@ export class DetailViewModel {
    * Refreshes the entry from the database after saving.
    */
   async saveContent(): Promise<void> {
-    if (this.entry === null || !this.isDirty) {
+    if (this.entry === null) {
+      return;
+    }
+    const newContent: string = this.editedContent;
+    if (newContent === this.decryptedContent) {
+      this.isDirty = false;
       return;
     }
     this.isSaving = true;
     try {
-      await this.repo.updateContent(this.entry.id, this.editedContent);
-      // Refresh the entry from the database
-      this.entry = await this.repo.getById(this.entry.id);
-      if (this.entry && this.entry.contentEncrypted.length > 0) {
-        this.decryptedContent = await this.encryptionService.decrypt({
-          ciphertext: this.entry.contentEncrypted,
-          iv: this.entry.iv,
-          authTag: this.entry.authTag
-        });
-      } else if (this.entry) {
-        this.decryptedContent = this.entry.contentPreview;
-      }
-      this.editedContent = this.decryptedContent;
+      await this.repo.updateContent(this.entry.id, newContent);
+      // Update display directly — no need to re-decrypt
+      this.decryptedContent = newContent;
+      this.editedContent = newContent;
       this.isDirty = false;
+      // Refresh entry metadata (updatedAt etc.)
+      this.entry = await this.repo.getById(this.entry.id);
       AppContext.notifyDataChanged();
     } catch (error) {
       console.error('[DetailViewModel] Failed to save content: ' + JSON.stringify(error));
@@ -217,6 +256,24 @@ export class DetailViewModel {
   revertContent(): void {
     this.editedContent = this.decryptedContent;
     this.isDirty = false;
+  }
+
+  /**
+   * Saves the user note to the repository.
+   */
+  async saveNote(note: string): Promise<void> {
+    if (!this.entry) {
+      console.error('[DetailViewModel] saveNote: entry is null, skip');
+      return;
+    }
+    this.note = note;
+    try {
+      await this.repo.updateNote(this.entry.id, note);
+      AppContext.notifyDataChanged();
+      console.info('[DetailViewModel] saveNote OK: id=' + this.entry.id + ' note=' + note);
+    } catch (error) {
+      console.error('[DetailViewModel] saveNote FAILED: ' + JSON.stringify(error));
+    }
   }
 
   /**

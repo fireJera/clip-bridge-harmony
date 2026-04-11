@@ -53,6 +53,7 @@ export class HistoryViewModel {
 
     try {
       this.entries = await this.repo.getHistory(0, AppConstants.PAGE_SIZE);
+      await this.populateTags(this.entries);
       this.isEmpty = this.entries.length === 0;
       this.currentPage = 1;
     } catch (error) {
@@ -85,6 +86,7 @@ export class HistoryViewModel {
       if (newEntries.length < AppConstants.PAGE_SIZE) {
         this.hasMore = false;
       }
+      await this.populateTags(newEntries);
       this.entries = [...this.entries, ...newEntries];
       this.currentPage++;
     } catch (error) {
@@ -114,6 +116,7 @@ export class HistoryViewModel {
 
     try {
       this.entries = await this.repo.search(keyword, 0, AppConstants.PAGE_SIZE);
+      await this.populateTags(this.entries);
       this.isEmpty = this.entries.length === 0;
       this.currentPage = 1;
     } catch (error) {
@@ -142,6 +145,17 @@ export class HistoryViewModel {
   }
 
   /**
+   * Updates the pinned state of an entry in the DB only.
+   * Does NOT reload the entries list — caller handles UI state locally.
+   *
+   * @param id - The database id of the entry.
+   * @param pinned - The new pinned state.
+   */
+  async updatePin(id: number, pinned: boolean): Promise<void> {
+    await this.repo.updatePin(id, pinned);
+  }
+
+  /**
    * Toggles the pinned state of an entry and reloads history to
    * reflect the new sort order.
    *
@@ -153,6 +167,14 @@ export class HistoryViewModel {
     entry.isPinned = newPinState;
     // Refresh to update sort order (pinned entries float to top)
     await this.loadHistory();
+  }
+
+  /**
+   * Updates the favorite state of an entry in the DB only.
+   * Does NOT reload the entries list — caller handles UI state locally.
+   */
+  async updateFavorite(id: number, favorited: boolean): Promise<void> {
+    await this.repo.updateFavorite(id, favorited);
   }
 
   /**
@@ -347,12 +369,26 @@ export class HistoryViewModel {
       }
 
       this.entries = result;
+      await this.populateTags(this.entries);
       this.isEmpty = this.entries.length === 0;
       this.currentPage = 1;
     } catch (error) {
       console.error('[HistoryViewModel] Failed to apply filters: ' + JSON.stringify(error));
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  /**
+   * Populates the tags (folders) for each entry in the list.
+   */
+  private async populateTags(entries: ClipboardEntry[]): Promise<void> {
+    for (const entry of entries) {
+      try {
+        entry.tags = await this.categoryRepo.getTagsForEntry(entry.id);
+      } catch (e) {
+        entry.tags = [];
+      }
     }
   }
 }

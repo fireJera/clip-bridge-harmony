@@ -12,4 +12,6 @@ export interface ICategoryRepository {
   removeTag(entryId: number, categoryId: number): Promise<void>;
   getEntriesByCategory(categoryId: number, offset: number, limit: number): Promise<ClipboardEntry[]>;
   getTagsForEntry(entryId: number): Promise<CustomCategory[]>;
+  getEntriesInAnyFolder(offset: number, limit: number): Promise<ClipboardEntry[]>;
+  countEntriesInAnyFolder(): Promise<number>;
 }

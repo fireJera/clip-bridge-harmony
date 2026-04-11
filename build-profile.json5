@@ -1,12 +1,34 @@
 {
   "app": {
-    "signingConfigs": [],
-    "compileSdkVersion": 12,
-    "compatibleSdkVersion": 12,
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001A02A7C878A267C3015F99D42D7C8487AB65621A3FD06636FC290BD8475C5D92A5F5B4E3455982",
+          "profile": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/jeremy/.ohos/config/default_clip-bridge-harmony_olb0yMA4DrpOHB6D38C39jKrYzwb_CLXKl_jlqrq688=.p12",
+          "storePassword": "0000001A7507A819C592CD4B0006738B5C5B73FD6C7F62E48316B942C907F80EAC5CB03AF7B9195B9ABB"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default"
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
       }
     ]
   },

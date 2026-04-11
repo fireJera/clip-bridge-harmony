@@ -45,4 +45,38 @@ export class ThemeTokens {
   static readonly TYPE_PHONE_COLOR: string = '#00B578';
   static readonly TYPE_IMAGE_COLOR: string = '#FF9800';
   static readonly TYPE_ADDRESS_COLOR: string = '#E84026';
+
+  // Bottom Navigation Bar
+  static readonly NAV_HEIGHT: number = 56;
+  static readonly NAV_ICON_SIZE: number = 24;
+  static readonly NAV_LABEL_SIZE: number = 12;
+  static readonly NAV_ACTIVE_COLOR: string = '#007DFF';
+  static readonly NAV_INACTIVE_COLOR: string = '#999999';
+
+  // Card design
+  static readonly CARD_RADIUS: number = 16;
+  static readonly CARD_PADDING: number = 16;
+  static readonly CARD_ICON_SIZE: number = 40;
+  static readonly CARD_ICON_RADIUS: number = 12;
+  static readonly CARD_TAG_HEIGHT: number = 23;
+  static readonly CARD_TAG_RADIUS: number = 12;
+  static readonly CARD_TAG_FONT_SIZE: number = 12;
+
+  // Detail page
+  static readonly DETAIL_TOPBAR_HEIGHT: number = 64;
+  static readonly DETAIL_FAB_HEIGHT: number = 64;
+  static readonly DETAIL_FAB_RADIUS: number = 16;
+  static readonly DETAIL_SECTION_RADIUS: number = 16;
+  static readonly DETAIL_SECTION_PADDING: number = 16;
+
+  // Settings
+  static readonly SETTINGS_GROUP_RADIUS: number = 16;
+  static readonly SETTINGS_ROW_HEIGHT: number = 72;
+  static readonly SETTINGS_ROW_RADIUS: number = 12;
+  static readonly SETTINGS_ICON_BG_SIZE: number = 40;
+  static readonly SETTINGS_ICON_BG_RADIUS: number = 12;
+
+  // Gradient decoration
+  static readonly GRADIENT_START: string = '#E8F0FE';
+  static readonly GRADIENT_END: string = '#F0E8FE';
 }

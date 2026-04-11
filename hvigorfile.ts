@@ -1,6 +1,6 @@
-import { hapTasks } from '@ohos/hvigor-ohos-plugin';
+import { appTasks } from '@ohos/hvigor-ohos-plugin';
 
 export default {
-  system: hapTasks,  /* Built-in plugin of Hvigor. */
+  system: appTasks,  /* Built-in plugin of Hvigor. */
   plugins: []        /* Custom plugin to extend the functionality of Hvigor. */
 }

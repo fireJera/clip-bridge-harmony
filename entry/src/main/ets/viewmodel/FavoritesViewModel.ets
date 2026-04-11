@@ -1,58 +1,80 @@
 import { ClipboardEntry } from '../model/ClipboardEntry';
-import { IClipboardRepository } from '../repository/ClipboardRepository';
+import { CustomCategory } from '../model/CustomCategory';
+import { ICategoryRepository } from '../repository/CategoryRepository';
 import { AppConstants } from '../common/constants/AppConstants';
 
 /**
  * ViewModel for the favorites page.
  *
- * Provides reactive state (@Trace) for the UI to observe:
- *   - favorites: the current page of favorited clipboard entries.
- *   - isLoading: whether a load/search operation is in progress.
- *   - isEmpty: whether there are no favorite entries.
- *   - searchKeyword: the current search filter keyword.
+ * Shows entries that belong to at least one folder (收藏夹).
+ * Supports folder-based filtering via a horizontal chip bar.
  *
- * Supports paginated loading (loadMore), unfavorite, delete, and
- * search over the contentPreview field within favorites only.
+ * Reactive state (@Trace):
+ *   - entries: the current page of entries in folders.
+ *   - folders: all user-created folders (for filter bar).
+ *   - activeFolderId: currently selected folder filter (null = all).
+ *   - isLoading, isEmpty: loading and empty states.
  */
 @ObservedV2
 export class FavoritesViewModel {
-  private repo: IClipboardRepository;
+  private categoryRepo: ICategoryRepository;
   private currentPage: number = 0;
   private hasMore: boolean = true;
 
-  @Trace favorites: ClipboardEntry[] = [];
+  @Trace entries: ClipboardEntry[] = [];
+  @Trace folders: CustomCategory[] = [];
+  @Trace activeFolderId: number | null = null;
   @Trace isLoading: boolean = false;
   @Trace isEmpty: boolean = true;
-  @Trace searchKeyword: string = '';
 
-  constructor(repo: IClipboardRepository) {
-    this.repo = repo;
+  constructor(categoryRepo: ICategoryRepository) {
+    this.categoryRepo = categoryRepo;
   }
 
   /**
-   * Loads the first page of favorite entries, resetting all pagination
-   * and search state.
+   * Loads folders and the first page of entries.
+   * If a folder filter is active, loads entries for that folder only.
    */
-  async loadFavorites(): Promise<void> {
+  async loadEntries(): Promise<void> {
     this.isLoading = true;
     this.currentPage = 0;
     this.hasMore = true;
-    this.searchKeyword = '';
 
     try {
-      this.favorites = await this.repo.getFavorites(0, AppConstants.PAGE_SIZE);
-      this.isEmpty = this.favorites.length === 0;
-      this.currentPage = 1;
+      await this.loadFolders();
+      await this.loadCurrentPage();
     } catch (error) {
-      console.error('[FavoritesViewModel] Failed to load favorites: ' + JSON.stringify(error));
+      console.error('[FavoritesViewModel] Failed to load entries: ' + JSON.stringify(error));
     } finally {
       this.isLoading = false;
     }
   }
 
   /**
-   * Loads the next page of favorite entries and appends them to the
-   * existing list.
+   * Loads all user-created folders for the filter bar.
+   */
+  async loadFolders(): Promise<void> {
+    try {
+      this.folders = await this.categoryRepo.getAll();
+      if (this.activeFolderId === null && this.folders.length > 0) {
+        this.activeFolderId = this.folders[0].id;
+      }
+    } catch (error) {
+      console.error('[FavoritesViewModel] Failed to load folders: ' + JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Sets the folder filter and reloads entries.
+   * Pass null to show entries from all folders.
+   */
+  async filterByFolder(folderId: number | null): Promise<void> {
+    this.activeFolderId = folderId;
+    await this.loadEntries();
+  }
+
+  /**
+   * Loads the next page and appends to the list.
    */
   async loadMore(): Promise<void> {
     if (!this.hasMore || this.isLoading) {
@@ -62,12 +84,12 @@ export class FavoritesViewModel {
 
     try {
       const offset: number = this.currentPage * AppConstants.PAGE_SIZE;
-      const newEntries: ClipboardEntry[] = await this.repo.getFavorites(offset, AppConstants.PAGE_SIZE);
+      const newEntries: ClipboardEntry[] = await this.fetchEntries(offset, AppConstants.PAGE_SIZE);
 
       if (newEntries.length < AppConstants.PAGE_SIZE) {
         this.hasMore = false;
       }
-      this.favorites = [...this.favorites, ...newEntries];
+      this.entries = [...this.entries, ...newEntries];
       this.currentPage++;
     } catch (error) {
       console.error('[FavoritesViewModel] Failed to load more: ' + JSON.stringify(error));
@@ -77,64 +99,40 @@ export class FavoritesViewModel {
   }
 
   /**
-   * Removes the entry from favorites (sets isFavorite to false in the database)
-   * and removes it from the in-memory list without a full reload.
-   *
-   * @param id - The database id of the entry to unfavorite.
+   * Removes an entry from the specified folder.
+   * After removal, reloads the list.
    */
-  async unfavorite(id: number): Promise<void> {
-    await this.repo.updateFavorite(id, false);
-    this.favorites = this.favorites.filter((e: ClipboardEntry): boolean => e.id !== id);
-    this.isEmpty = this.favorites.length === 0;
-  }
-
-  /**
-   * Deletes a single clipboard entry by id and removes it from the
-   * current in-memory list without a full reload.
-   *
-   * @param id - The database id of the entry to delete.
-   */
-  async deleteEntry(id: number): Promise<void> {
-    await this.repo.deleteById(id);
-    this.favorites = this.favorites.filter((e: ClipboardEntry): boolean => e.id !== id);
-    this.isEmpty = this.favorites.length === 0;
-  }
-
-  /**
-   * Searches within favorite entries by keyword. Resets pagination state.
-   * If the keyword is empty, falls back to loadFavorites().
-   *
-   * Note: Uses the general search which covers all entries, then filters
-   * to favorites only. For a true favorites-only search, we load all
-   * favorites and filter locally since the DAO search method queries all entries.
-   *
-   * @param keyword - The search string to match against contentPreview.
-   */
-  async search(keyword: string): Promise<void> {
-    if (!keyword.trim()) {
-      await this.loadFavorites();
-      return;
-    }
-
-    this.isLoading = true;
-    this.searchKeyword = keyword;
-    this.currentPage = 0;
-    this.hasMore = true;
-
+  async removeFromFolder(entryId: number, folderId: number): Promise<void> {
     try {
-      const allFavorites: ClipboardEntry[] = await this.repo.getFavorites(0, AppConstants.MAX_HISTORY_LIMIT);
-      const lowerKeyword: string = keyword.toLowerCase();
-      const filtered: ClipboardEntry[] = allFavorites.filter((e: ClipboardEntry): boolean => {
-        return e.contentPreview.toLowerCase().includes(lowerKeyword);
-      });
-      this.favorites = filtered;
-      this.isEmpty = this.favorites.length === 0;
-      this.currentPage = 1;
-      this.hasMore = false; // local filter, no pagination
+      await this.categoryRepo.removeTag(entryId, folderId);
+      await this.loadEntries();
     } catch (error) {
-      console.error('[FavoritesViewModel] Failed to search favorites: ' + JSON.stringify(error));
-    } finally {
-      this.isLoading = false;
+      console.error('[FavoritesViewModel] Failed to remove from folder: ' + JSON.stringify(error));
+    }
+  }
+
+  /**
+   * Removes an entry from the current view by reloading.
+   * Actual deletion is handled by the caller through the clipboard repo.
+   */
+  async refreshAfterDelete(): Promise<void> {
+    await this.loadEntries();
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────
+
+  private async loadCurrentPage(): Promise<void> {
+    const newEntries: ClipboardEntry[] = await this.fetchEntries(0, AppConstants.PAGE_SIZE);
+    this.entries = newEntries;
+    this.isEmpty = this.entries.length === 0;
+    this.currentPage = 1;
+  }
+
+  private async fetchEntries(offset: number, limit: number): Promise<ClipboardEntry[]> {
+    if (this.activeFolderId !== null) {
+      return await this.categoryRepo.getEntriesByCategory(this.activeFolderId, offset, limit);
+    } else {
+      return await this.categoryRepo.getEntriesInAnyFolder(offset, limit);
     }
   }
 }

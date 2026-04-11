@@ -22,6 +22,23 @@ const KEY_STORE_NAME: string = 'clipbridge_key_store';
 const KEY_BLOB_KEY: string = 'aes256_key_blob';
 
 /**
+ * Concrete class implementing cryptoFramework.GcmParamsSpec for AES-GCM operations.
+ * Required because GcmParamsSpec is an interface and cannot be instantiated with 'new'.
+ */
+class GcmParams implements cryptoFramework.GcmParamsSpec {
+  algName: string = 'GcmParamsSpec';
+  iv: cryptoFramework.DataBlob;
+  aad: cryptoFramework.DataBlob;
+  authTag: cryptoFramework.DataBlob;
+
+  constructor() {
+    this.iv = { data: new Uint8Array(0) };
+    this.aad = { data: new Uint8Array(0) };
+    this.authTag = { data: new Uint8Array(0) };
+  }
+}
+
+/**
  * Singleton service that provides AES-256-GCM encryption/decryption
  * and SHA-256 hashing for clipboard content.
  *
@@ -101,19 +118,23 @@ export class EncryptionService {
 
       // Create cipher instance
       const cipher = cryptoFramework.createCipher(CIPHER_ALGO);
-      const gcmParams = cryptoFramework.createGcmParamsSpec(iv);
+      const gcmParams = new GcmParams();
+      gcmParams.iv = { data: iv };
+      gcmParams.aad = { data: new Uint8Array(0) };
+      gcmParams.authTag = { data: new Uint8Array(AUTH_TAG_LENGTH) };
       await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, this.symKey, gcmParams);
 
-      // Convert plaintext to Uint8Array
+      // Convert plaintext to Uint8Array and wrap in DataBlob
       const textEncoder = new util.TextEncoder();
-      const input = textEncoder.encodeInto(plaintext);
+      const inputBytes = textEncoder.encodeInto(plaintext);
+      const inputData: cryptoFramework.DataBlob = { data: inputBytes };
 
-      // Encrypt (doFinal returns DataBlob)
-      const result = await cipher.doFinal(input);
+      // Encrypt (doFinal returns Promise<DataBlob>)
+      const result: cryptoFramework.DataBlob = await cipher.doFinal(inputData);
 
       // The GCM auth tag is appended to the end of the ciphertext in HarmonyOS
       // cryptoFramework output. Split it: last 16 bytes are authTag.
-      const fullOutput = result.data;
+      const fullOutput: Uint8Array = result.data;
       const tagOffset = fullOutput.length - AUTH_TAG_LENGTH;
       const ciphertext = new Uint8Array(tagOffset);
       const authTag = new Uint8Array(AUTH_TAG_LENGTH);
@@ -147,12 +168,15 @@ export class EncryptionService {
 
       // Create decipher
       const cipher = cryptoFramework.createCipher(CIPHER_ALGO);
-      const gcmParams = cryptoFramework.createGcmParamsSpec(encrypted.iv);
-      gcmParams.authTag = encrypted.authTag;
+      const gcmParams = new GcmParams();
+      gcmParams.iv = { data: encrypted.iv };
+      gcmParams.aad = { data: new Uint8Array(0) };
+      gcmParams.authTag = { data: encrypted.authTag };
       await cipher.init(cryptoFramework.CryptoMode.DECRYPT_MODE, this.symKey, gcmParams);
 
-      // Decrypt
-      const result = await cipher.doFinal(combined);
+      // Decrypt (doFinal takes DataBlob, returns Promise<DataBlob>)
+      const inputData: cryptoFramework.DataBlob = { data: combined };
+      const result: cryptoFramework.DataBlob = await cipher.doFinal(inputData);
 
       // Convert back to string
       const textDecoder = util.TextDecoder.create('utf-8');
@@ -174,13 +198,31 @@ export class EncryptionService {
     try {
       const md = cryptoFramework.createMd(HASH_ALGO);
       const textEncoder = new util.TextEncoder();
-      const input = textEncoder.encodeInto(content);
-      await md.update(input);
-      const result = await md.digest();
+      const inputBytes = textEncoder.encodeInto(content);
+      const inputData: cryptoFramework.DataBlob = { data: inputBytes };
+      await md.update(inputData);
+      const result: cryptoFramework.DataBlob = await md.digest();
       return this.uint8ArrayToHex(result.data);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       throw new Error(`Hashing failed: ${msg}`);
+    }
+  }
+
+  /**
+   * Hashes raw bytes (e.g., image pixel data) using SHA-256.
+   * Used for image deduplication where content is binary, not text.
+   */
+  async hashBytes(data: Uint8Array): Promise<string> {
+    try {
+      const md = cryptoFramework.createMd(HASH_ALGO);
+      const inputData: cryptoFramework.DataBlob = { data: data };
+      await md.update(inputData);
+      const result: cryptoFramework.DataBlob = await md.digest();
+      return this.uint8ArrayToHex(result.data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Hashing bytes failed: ${msg}`);
     }
   }
 
@@ -217,7 +259,7 @@ export class EncryptionService {
       return;
     }
     const prefs = await preferences.getPreferences(this.appContext, KEY_STORE_NAME);
-    const keyBlob = symKey.getEncoded();
+    const keyBlob: cryptoFramework.DataBlob = symKey.getEncoded();
     const base64 = this.uint8ArrayToBase64(keyBlob.data);
     await prefs.put(KEY_BLOB_KEY, base64);
     await prefs.flush();

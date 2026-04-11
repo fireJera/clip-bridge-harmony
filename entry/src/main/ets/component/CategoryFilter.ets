@@ -11,6 +11,16 @@ interface TypeFilterItem {
 }
 
 /**
+ * Parameters for the FilterChip builder.
+ */
+interface FilterChipParams {
+  label: string;
+  color: string;
+  isActive: boolean;
+  onToggle: () => void;
+}
+
+/**
  * Horizontal scrollable filter chip bar for filtering clipboard entries
  * by auto-detected content type and custom user-defined categories.
  *
@@ -75,12 +85,7 @@ export struct CategoryFilter {
   }
 
   @Builder
-  FilterChip(params: {
-    label: string;
-    color: string;
-    isActive: boolean;
-    onToggle: () => void
-  }) {
+  FilterChip(params: FilterChipParams) {
     Row() {
       // Color dot
       Text('')

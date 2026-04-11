@@ -34,7 +34,7 @@ export struct CategoryPickerDialog {
   build() {
     Column() {
       // Title
-      Text('选择标签')
+      Text('选择收藏夹')
         .fontSize(ThemeTokens.FONT_SIZE_TITLE)
         .fontWeight(ThemeTokens.FONT_WEIGHT_BOLD)
         .fontColor(ThemeTokens.TEXT_PRIMARY)
@@ -85,7 +85,7 @@ export struct CategoryPickerDialog {
         .divider({ strokeWidth: 0.5, color: ThemeTokens.DIVIDER })
       } else {
         // No categories yet
-        Text('还没有自定义标签')
+        Text('还没有收藏夹')
           .fontSize(ThemeTokens.FONT_SIZE_BODY)
           .fontColor(ThemeTokens.TEXT_TERTIARY)
           .width('100%')
@@ -101,7 +101,7 @@ export struct CategoryPickerDialog {
       // "Create new category" section
       if (!this.isNewCategoryVisible) {
         Row() {
-          Text('+ 新建标签')
+          Text('+ 新建收藏夹')
             .fontSize(ThemeTokens.FONT_SIZE_BODY)
             .fontColor(ThemeTokens.PRIMARY)
             .fontWeight(ThemeTokens.FONT_WEIGHT_MEDIUM)
@@ -115,7 +115,7 @@ export struct CategoryPickerDialog {
       } else {
         // Inline new category input
         Row() {
-          TextInput({ placeholder: '输入标签名称', text: this.newCategoryName })
+          TextInput({ placeholder: '输入收藏夹名称', text: this.newCategoryName })
             .type(InputType.Normal)
             .fontSize(ThemeTokens.FONT_SIZE_BODY)
             .layoutWeight(1)

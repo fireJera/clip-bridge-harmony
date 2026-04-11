@@ -14,6 +14,7 @@ export interface IClipboardRepository {
   updatePin(id: number, pinned: boolean): Promise<void>;
   updateFavorite(id: number, favorited: boolean): Promise<void>;
   updateContent(id: number, newContent: string): Promise<void>;
+  updateNote(id: number, note: string): Promise<void>;
   deleteById(id: number): Promise<void>;
   deleteByIds(ids: number[]): Promise<void>;
   deleteAll(): Promise<void>;

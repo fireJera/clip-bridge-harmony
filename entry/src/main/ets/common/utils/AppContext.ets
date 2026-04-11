@@ -3,6 +3,7 @@ import { ICategoryRepository } from '../../repository/CategoryRepository';
 import { ISettingsRepository } from '../../repository/SettingsRepository';
 import { BlacklistDao } from '../../data/database/BlacklistDao';
 import { EncryptionService } from '../../service/EncryptionService';
+import { ImageStorageService } from '../../service/ImageStorageService';
 
 /**
  * Application-wide context holder.
@@ -16,6 +17,7 @@ export class AppContext {
   private static settingsRepo: ISettingsRepository | null = null;
   private static blacklistDao: BlacklistDao | null = null;
   private static encryptionService: EncryptionService | null = null;
+  private static imageStorageService: ImageStorageService | null = null;
 
   static setContext(context: Context): void {
     AppContext.context = context;
@@ -66,6 +68,14 @@ export class AppContext {
 
   static getEncryptionService(): EncryptionService | null {
     return AppContext.encryptionService;
+  }
+
+  static setImageStorageService(service: ImageStorageService): void {
+    AppContext.imageStorageService = service;
+  }
+
+  static getImageStorageService(): ImageStorageService | null {
+    return AppContext.imageStorageService;
   }
 
   // ── UI refresh callbacks ──────────────────────────────────────

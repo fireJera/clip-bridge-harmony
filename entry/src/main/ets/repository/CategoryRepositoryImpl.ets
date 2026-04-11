@@ -20,7 +20,7 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
       if (currentCount >= AppConstants.MAX_CATEGORIES) {
         throw new Error(`Maximum number of categories (${AppConstants.MAX_CATEGORIES}) reached`);
       }
-      return await this.dao.insert(name, color);
+      return await this.dao.create(name, color ?? '', 0);
     } catch (error) {
       throw new Error(`Failed to create category "${name}": ${error}`);
     }
@@ -44,7 +44,7 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
 
   async update(id: number, name: string, color?: string): Promise<void> {
     try {
-      await this.dao.update(id, name, color);
+      await this.dao.update(id, name, color ?? '');
     } catch (error) {
       throw new Error(`Failed to update category ${id}: ${error}`);
     }
@@ -68,7 +68,7 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
 
   async addTag(entryId: number, categoryId: number): Promise<void> {
     try {
-      await this.dao.addRelation(entryId, categoryId);
+      await this.dao.addTag(entryId, categoryId);
     } catch (error) {
       throw new Error(`Failed to add tag (entry=${entryId}, category=${categoryId}): ${error}`);
     }
@@ -76,7 +76,7 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
 
   async removeTag(entryId: number, categoryId: number): Promise<void> {
     try {
-      await this.dao.removeRelation(entryId, categoryId);
+      await this.dao.removeTag(entryId, categoryId);
     } catch (error) {
       throw new Error(`Failed to remove tag (entry=${entryId}, category=${categoryId}): ${error}`);
     }
@@ -92,9 +92,25 @@ export class CategoryRepositoryImpl implements ICategoryRepository {
 
   async getTagsForEntry(entryId: number): Promise<CustomCategory[]> {
     try {
-      return await this.dao.getCategoriesForEntry(entryId);
+      return await this.dao.getTagsForEntry(entryId);
     } catch (error) {
       throw new Error(`Failed to get tags for entry ${entryId}: ${error}`);
+    }
+  }
+
+  async getEntriesInAnyFolder(offset: number, limit: number): Promise<ClipboardEntry[]> {
+    try {
+      return await this.dao.getEntriesInAnyFolder(offset, limit);
+    } catch (error) {
+      throw new Error(`Failed to get entries in any folder: ${error}`);
+    }
+  }
+
+  async countEntriesInAnyFolder(): Promise<number> {
+    try {
+      return await this.dao.countEntriesInAnyFolder();
+    } catch (error) {
+      throw new Error(`Failed to count entries in any folder: ${error}`);
     }
   }
 }

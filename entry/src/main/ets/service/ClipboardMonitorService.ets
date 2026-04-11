@@ -1,16 +1,22 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { notificationManager } from '@kit.NotificationKit';
 import { backgroundTaskManager } from '@kit.BackgroundTasksKit';
+import { util } from '@kit.ArkTS';
+import { wantAgent } from '@kit.AbilityKit';
+import { hilog } from '@kit.PerformanceAnalysisKit';
+import { image } from '@kit.ImageKit';
 import { IClipboardRepository } from '../repository/ClipboardRepository';
 import { ContentTypeDetector, ContentType } from './ContentTypeDetector';
 import { DeduplicationService } from './DeduplicationService';
 import { EncryptionService } from './EncryptionService';
+import { ImageStorageService } from './ImageStorageService';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { AppConstants } from '../common/constants/AppConstants';
 import { AppContext } from '../common/utils/AppContext';
 import { BlacklistDao } from '../data/database/BlacklistDao';
 
 const TAG: string = '[ClipboardMonitor]';
+const DOMAIN: number = 0x0000;
 
 /**
  * Core background service that monitors clipboard changes and automatically
@@ -36,6 +42,7 @@ export class ClipboardMonitorService {
   private dedupService: DeduplicationService;
   private encryptionService: EncryptionService;
   private blacklistDao: BlacklistDao | null;
+  private imageStorageService: ImageStorageService | null;
   private systemPasteboard: pasteboard.SystemPasteboard;
   private isMonitoring: boolean = false;
   private isPaused: boolean = false;
@@ -44,13 +51,15 @@ export class ClipboardMonitorService {
   constructor(
     repo: IClipboardRepository,
     encryptionService: EncryptionService,
-    blacklistDao: BlacklistDao | null = null
+    blacklistDao: BlacklistDao | null = null,
+    imageStorageService: ImageStorageService | null = null
   ) {
     this.repo = repo;
     this.typeDetector = new ContentTypeDetector();
     this.dedupService = new DeduplicationService(repo);
     this.encryptionService = encryptionService;
     this.blacklistDao = blacklistDao;
+    this.imageStorageService = imageStorageService;
     this.systemPasteboard = pasteboard.getSystemPasteboard();
   }
 
@@ -69,12 +78,13 @@ export class ClipboardMonitorService {
 
     // Register clipboard change listener
     this.systemPasteboard.on('update', () => {
+      hilog.info(DOMAIN, TAG, 'pasteboard update event fired');
       this.onClipboardUpdate();
     });
 
     this.isMonitoring = true;
     this.isPaused = false;
-    console.info(`${TAG} Clipboard monitoring started`);
+    hilog.info(DOMAIN, TAG, 'Clipboard monitoring started');
   }
 
   /**
@@ -140,55 +150,176 @@ export class ClipboardMonitorService {
   }
 
   /**
+   * Reads current clipboard content and processes it if new.
+   * Called from onForeground() to capture copies that happened while
+   * the app was not running or the listener wasn't registered.
+   */
+  async checkCurrentClipboard(): Promise<void> {
+    await this.onClipboardUpdate();
+  }
+
+  /**
    * Handler invoked when the system pasteboard content changes.
    */
   private async onClipboardUpdate(): Promise<void> {
     try {
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: start reading pasteboard');
+
       // 1. Read clipboard data
       const pasteData: pasteboard.PasteData = await this.systemPasteboard.getData();
       if (!pasteData || pasteData.getRecordCount() === 0) {
+        hilog.warn(DOMAIN, TAG, 'onClipboardUpdate: pasteData is empty or null');
         return;
       }
 
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: got pasteData, recordCount=%{public}d', pasteData.getRecordCount());
+
       const record: pasteboard.PasteDataRecord = pasteData.getRecordAt(0);
       const mimeType: string = record.mimeType;
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: mimeType=%{public}s', mimeType);
 
       // 2. Extract content based on MIME type and enforce size limits
       let content: string = '';
       let contentSize: number = 0;
+      let contentHash: string = '';
 
-      if (mimeType.startsWith('image/')) {
-        // Image handling: for v1 we store a placeholder.
-        // Full image save-to-file support will come in a later phase.
-        content = '[Image]';
-        // Attempt to estimate image size from the record
-        const imageData: Uint8Array = record.toUri ? new Uint8Array(0) : new Uint8Array(0);
-        contentSize = imageData.byteLength;
-        // Use a heuristic: if we cannot determine real size, assume acceptable
-        if (contentSize > AppConstants.IMAGE_SIZE_LIMIT) {
-          console.info(`${TAG} Skipped oversized image content (${contentSize} bytes)`);
-          this.sendOversizeNotification('图片内容过大', contentSize, AppConstants.IMAGE_SIZE_LIMIT);
+      if (mimeType.startsWith('image/') || mimeType === 'pixelMap') {
+        // --- Image capture: extract PixelMap, save files ---
+        let pixelMap: image.PixelMap | null = null;
+        try {
+          pixelMap = record.pixelMap;
+          hilog.info(DOMAIN, TAG, 'record.pixelMap = %{public}s', pixelMap ? 'available' : 'null');
+        } catch (e) {
+          hilog.warn(DOMAIN, TAG, 'Failed to get PixelMap: %{public}s', JSON.stringify(e));
+        }
+
+        // Fallback: try creating PixelMap from URI if pixelMap is null
+        if (!pixelMap && record.uri) {
+          try {
+            hilog.info(DOMAIN, TAG, 'Trying ImageSource from URI: %{public}s', record.uri);
+            const imageSource = image.createImageSource(record.uri);
+            pixelMap = await imageSource.createPixelMap();
+            imageSource.release();
+            hilog.info(DOMAIN, TAG, 'PixelMap created from URI OK');
+          } catch (e) {
+            hilog.warn(DOMAIN, TAG, 'Failed to create PixelMap from URI: %{public}s', JSON.stringify(e));
+          }
+        }
+
+        // Fallback: search all records for a PixelMap
+        if (!pixelMap) {
+          const recordCount = pasteData.getRecordCount();
+          for (let i = 0; i < recordCount; i++) {
+            try {
+              const r = pasteData.getRecordAt(i);
+              if (r.pixelMap) {
+                pixelMap = r.pixelMap;
+                hilog.info(DOMAIN, TAG, 'Found PixelMap in record %{public}d', i);
+                break;
+              }
+            } catch (e) {
+              // skip
+            }
+          }
+        }
+
+        if (!pixelMap) {
+          hilog.warn(DOMAIN, TAG, 'No PixelMap available from any record, saving as placeholder');
+          // Fall through to create a text-based placeholder entry
+          content = '[Image]';
+          contentSize = 0;
+          // Don't return — let it create a basic entry below
+        } else {
+          // Compute hash from pixel data for proper per-image dedup
+          const imgInfo = await pixelMap.getImageInfo();
+          const pixelBytes = new Uint8Array(imgInfo.size.width * imgInfo.size.height * 4);
+          await pixelMap.readPixelsToBuffer(pixelBytes.buffer);
+          contentHash = await this.encryptionService.hashBytes(pixelBytes);
+          content = `[Image ${imgInfo.size.width}x${imgInfo.size.height}]`;
+          contentSize = pixelBytes.byteLength;
+
+          hilog.info(DOMAIN, TAG, 'Image: %{public}dx%{public}d, %{public}d bytes',
+            imgInfo.size.width, imgInfo.size.height, contentSize);
+
+          // Enforce image size limit
+          if (contentSize > AppConstants.IMAGE_SIZE_LIMIT) {
+            try { pixelMap.release(); } catch (e) { /* ignore */ }
+            this.sendOversizeNotification('图片过大', contentSize, AppConstants.IMAGE_SIZE_LIMIT);
+            return;
+          }
+
+          // Save image files
+          let savedImagePath: string = '';
+          let savedThumbnailPath: string = '';
+          if (this.imageStorageService) {
+            try {
+              const tempId = Date.now();
+              savedImagePath = await this.imageStorageService.saveImage(pixelMap, tempId);
+              savedThumbnailPath = await this.imageStorageService.generateThumbnail(pixelMap, tempId);
+              hilog.info(DOMAIN, TAG, 'Image files saved: img=%{public}s', savedImagePath ? 'yes' : 'no');
+            } catch (imgErr) {
+              hilog.error(DOMAIN, TAG, 'Image save failed: %{public}s', JSON.stringify(imgErr));
+            }
+          }
+          try { pixelMap.release(); } catch (e) { /* ignore */ }
+
+          // Dedup check
+          const existing: ClipboardEntry | null = await this.dedupService.checkDuplicate(contentHash);
+          if (existing) {
+            await this.dedupService.promoteToTop(existing.id);
+            AppContext.notifyDataChanged();
+            return;
+          }
+
+          const now: string = new Date().toISOString();
+          const entry: ClipboardEntry = new ClipboardEntry();
+          entry.rawContent = content;
+          entry.contentHash = contentHash;
+          entry.contentType = 'image';
+          entry.contentPreview = content;
+          entry.contentSize = contentSize;
+          entry.imagePath = savedImagePath;
+          entry.thumbnailPath = savedThumbnailPath;
+          entry.createdAt = now;
+          entry.updatedAt = now;
+
+          const newId: number = await this.repo.insert(entry);
+          hilog.info(DOMAIN, TAG, 'Image entry saved (id=%{public}d)', newId);
+          AppContext.notifyDataChanged();
           return;
         }
       } else {
-        content = record.plainText || '';
-        contentSize = new TextEncoder().encode(content).byteLength;
+        content = record.plainText ?? '';
+        if (content.length > 0) {
+          contentSize = new util.TextEncoder().encode(content).byteLength;
+          hilog.info(DOMAIN, TAG, 'onClipboardUpdate: text content size=%{public}d', contentSize);
 
-        if (contentSize > AppConstants.TEXT_SIZE_LIMIT) {
-          console.info(`${TAG} Skipped oversized text content (${contentSize} bytes)`);
-          this.sendOversizeNotification('文本内容过大', contentSize, AppConstants.TEXT_SIZE_LIMIT);
-          return;
+          if (contentSize > AppConstants.TEXT_SIZE_LIMIT) {
+            console.info(`${TAG} Skipped oversized text content (${contentSize} bytes)`);
+            this.sendOversizeNotification('文本内容过大', contentSize, AppConstants.TEXT_SIZE_LIMIT);
+            return;
+          }
         }
       }
 
       // Skip empty content
       if (!content) {
+        hilog.warn(DOMAIN, TAG, 'onClipboardUpdate: content is empty, skipping');
         return;
       }
 
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: processing content, preview=%{public}s', content.substring(0, 30));
+
       // 2b. Check blacklist: skip if source app is blacklisted
       if (this.blacklistDao) {
-        const sourceApp: string = pasteData.getProperty<string>('sourceApp') || '';
+        const prop: pasteboard.PasteDataProperty = pasteData.getProperty();
+        let sourceApp: string = '';
+        if (prop.additions) {
+          const appValue = prop.additions['sourceApp'];
+          if (appValue) {
+            sourceApp = String(appValue);
+          }
+        }
         if (sourceApp) {
           try {
             const isBlocked: boolean = await this.blacklistDao.isBlacklisted(sourceApp);
@@ -204,16 +335,19 @@ export class ClipboardMonitorService {
 
       // 3. Detect content type
       const contentType: ContentType = this.typeDetector.detect(content, mimeType);
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: detected type=%{public}s', contentType);
 
-      // 4. Compute hash for deduplication check
-      const contentHash: string = await this.encryptionService.hash(content);
+      // 4. Compute hash for deduplication check (text path)
+      contentHash = await this.encryptionService.hash(content);
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: hash=%{public}s', contentHash.substring(0, 16));
 
       // 5. Check for duplicate
       const existing: ClipboardEntry | null = await this.dedupService.checkDuplicate(contentHash);
       if (existing) {
         // Duplicate found: promote to top and skip insert
         await this.dedupService.promoteToTop(existing.id);
-        console.info(`${TAG} Duplicate content promoted to top (id=${existing.id})`);
+        hilog.info(DOMAIN, TAG, 'onClipboardUpdate: duplicate promoted to top (id=%{public}d)', existing.id);
+        AppContext.notifyDataChanged();
         return;
       }
 
@@ -231,10 +365,11 @@ export class ClipboardMonitorService {
 
       // 7. Insert via repository (handles encryption + auto-prune)
       const newId: number = await this.repo.insert(entry);
-      console.info(`${TAG} New clipboard entry recorded (id=${newId}, type=${contentType})`);
+      hilog.info(DOMAIN, TAG, 'onClipboardUpdate: NEW entry saved (id=%{public}d, type=%{public}s)', newId, contentType);
+      AppContext.notifyDataChanged();
 
     } catch (err) {
-      console.error(`${TAG} Error processing clipboard update: ${err}`);
+      hilog.error(DOMAIN, TAG, 'onClipboardUpdate: ERROR %{public}s', JSON.stringify(err));
     }
   }
 
@@ -248,11 +383,18 @@ export class ClipboardMonitorService {
     }
     try {
       const context = AppContext.getContext();
-      backgroundTaskManager.startContinuousTask(context, 'dataTransfer', 'Clipboard monitoring');
+      const wantAgentInfo: wantAgent.WantAgentInfo = {
+        wants: [{ bundleName: 'com.clipbridge.harmony', abilityName: 'EntryAbility' }],
+        operationType: wantAgent.OperationType.START_ABILITY,
+        requestCode: 0,
+        wantAgentFlags: [wantAgent.WantAgentFlags.CONSTANT_FLAG]
+      };
+      const agent = await wantAgent.getWantAgent(wantAgentInfo);
+      await backgroundTaskManager.startBackgroundRunning(context, backgroundTaskManager.BackgroundMode.DATA_TRANSFER, agent);
       this.continuousTaskActive = true;
-      console.info(`${TAG} Continuous background task started`);
+      hilog.info(DOMAIN, TAG, 'Continuous background task started');
     } catch (err) {
-      console.error(`${TAG} Failed to start continuous task: ${err}`);
+      hilog.error(DOMAIN, TAG, 'Failed to start continuous task: %{public}s', JSON.stringify(err));
     }
   }
 
@@ -265,7 +407,7 @@ export class ClipboardMonitorService {
     }
     try {
       const context = AppContext.getContext();
-      backgroundTaskManager.stopContinuousTask(context);
+      await backgroundTaskManager.stopBackgroundRunning(context);
       this.continuousTaskActive = false;
       console.info(`${TAG} Continuous background task stopped`);
     } catch (err) {

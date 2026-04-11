@@ -43,7 +43,8 @@ export class ClipboardDao {
         'created_at': entry.createdAt,
         'updated_at': entry.updatedAt,
         'iv': entry.iv,
-        'auth_tag': entry.authTag
+        'auth_tag': entry.authTag,
+        'note': entry.note || null
       };
       const rowId: number = await this.store.insert('clipboard_entry', valueBucket);
       return rowId;
@@ -217,6 +218,20 @@ export class ClipboardDao {
     }
   }
 
+  async updateNote(id: number, note: string): Promise<void> {
+    try {
+      const valueBucket: relationalStore.ValuesBucket = {
+        'note': note || null,
+        'updated_at': new Date().toISOString()
+      };
+      const predicates = new relationalStore.RdbPredicates('clipboard_entry');
+      predicates.equalTo('id', id);
+      await this.store.update(valueBucket, predicates);
+    } catch (error) {
+      throw new Error(`Failed to update note for entry ${id}: ${error}`);
+    }
+  }
+
   async deleteById(id: number): Promise<void> {
     try {
       const predicates = new relationalStore.RdbPredicates('clipboard_entry');
@@ -338,6 +353,14 @@ export class ClipboardDao {
     entry.updatedAt = resultSet.getString(updatedAtIndex);
     entry.iv = resultSet.getBlob(ivIndex);
     entry.authTag = resultSet.getBlob(authTagIndex);
+
+    // note column added via migration — may not exist on older databases
+    try {
+      const noteIndex: number = resultSet.getColumnIndex('note');
+      entry.note = resultSet.getString(noteIndex) ?? '';
+    } catch (e) {
+      entry.note = '';
+    }
 
     return entry;
   }

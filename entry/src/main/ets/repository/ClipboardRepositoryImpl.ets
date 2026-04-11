@@ -2,6 +2,7 @@ import { IClipboardRepository } from './ClipboardRepository';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { ClipboardDao, ContentUpdateData } from '../data/database/ClipboardDao';
 import { EncryptionService } from '../service/EncryptionService';
+import { ImageStorageService } from '../service/ImageStorageService';
 import { UserSettings } from '../data/preferences/UserSettings';
 import { util } from '@kit.ArkTS';
 import { AppConstants } from '../common/constants/AppConstants';
@@ -12,11 +13,14 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
   private dao: ClipboardDao;
   private encryptionService: EncryptionService;
   private userSettings: UserSettings;
+  private imageStorageService: ImageStorageService | null;
 
-  constructor(dao: ClipboardDao, encryptionService: EncryptionService, userSettings: UserSettings) {
+  constructor(dao: ClipboardDao, encryptionService: EncryptionService, userSettings: UserSettings,
+    imageStorageService: ImageStorageService | null = null) {
     this.dao = dao;
     this.encryptionService = encryptionService;
     this.userSettings = userSettings;
+    this.imageStorageService = imageStorageService;
   }
 
   async insert(entry: ClipboardEntry): Promise<number> {
@@ -170,8 +174,22 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
     }
   }
 
+  async updateNote(id: number, note: string): Promise<void> {
+    try {
+      await this.dao.updateNote(id, note);
+    } catch (error) {
+      throw new Error(`Failed to update note for entry ${id}: ${error}`);
+    }
+  }
+
   async deleteById(id: number): Promise<void> {
     try {
+      if (this.imageStorageService) {
+        const entry = await this.dao.getById(id);
+        if (entry && (entry.imagePath || entry.thumbnailPath)) {
+          await this.imageStorageService.deleteImageFiles(entry.imagePath, entry.thumbnailPath);
+        }
+      }
       await this.dao.deleteById(id);
     } catch (error) {
       throw new Error(`Failed to delete clipboard entry ${id}: ${error}`);
@@ -180,6 +198,14 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
 
   async deleteByIds(ids: number[]): Promise<void> {
     try {
+      if (this.imageStorageService) {
+        for (const id of ids) {
+          const entry = await this.dao.getById(id);
+          if (entry && (entry.imagePath || entry.thumbnailPath)) {
+            await this.imageStorageService.deleteImageFiles(entry.imagePath, entry.thumbnailPath);
+          }
+        }
+      }
       await this.dao.deleteByIds(ids);
     } catch (error) {
       throw new Error(`Failed to delete clipboard entries: ${error}`);
@@ -189,6 +215,9 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
   async deleteAll(): Promise<void> {
     try {
       await this.dao.deleteAll();
+      if (this.imageStorageService) {
+        await this.imageStorageService.deleteAllImageFiles();
+      }
     } catch (error) {
       throw new Error(`Failed to delete all clipboard entries: ${error}`);
     }
@@ -196,6 +225,20 @@ export class ClipboardRepositoryImpl implements IClipboardRepository {
 
   async pruneOldest(count: number): Promise<number> {
     try {
+      if (this.imageStorageService) {
+        // Fetch entries about to be pruned and clean up their image files
+        const all = await this.dao.getHistory(0, await this.dao.count());
+        // Prune targets: non-pinned, non-favorite, oldest by updatedAt
+        const candidates = all
+          .filter((e: ClipboardEntry) => !e.isPinned && !e.isFavorite)
+          .sort((a: ClipboardEntry, b: ClipboardEntry) => a.updatedAt.localeCompare(b.updatedAt))
+          .slice(0, count);
+        for (const entry of candidates) {
+          if (entry.imagePath || entry.thumbnailPath) {
+            await this.imageStorageService.deleteImageFiles(entry.imagePath, entry.thumbnailPath);
+          }
+        }
+      }
       return await this.dao.pruneOldest(count);
     } catch (error) {
       throw new Error(`Failed to prune oldest ${count} entries: ${error}`);

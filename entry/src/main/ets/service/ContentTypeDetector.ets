@@ -22,7 +22,7 @@ export class ContentTypeDetector {
    * @returns The detected ContentType.
    */
   detect(content: string, mimeType: string): ContentType {
-    if (mimeType.startsWith('image/')) {
+    if (mimeType.startsWith('image/') || mimeType === 'pixelMap') {
       // Even for images, check if meaningful text patterns are present
       const textType = this.detectText(content);
       if (textType !== 'text') {

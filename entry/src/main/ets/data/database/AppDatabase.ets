@@ -56,7 +56,8 @@ export class AppDatabase {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         iv BLOB NOT NULL,
-        auth_tag BLOB NOT NULL
+        auth_tag BLOB NOT NULL,
+        note TEXT
       )`;
 
     const createCustomCategory: string = `
@@ -91,6 +92,19 @@ export class AppDatabase {
     await this.rdbStore.executeSql(createAppBlacklistEntry);
 
     await this.createIndexes();
+    await this.runMigrations();
+  }
+
+  private async runMigrations(): Promise<void> {
+    if (!this.rdbStore) {
+      return;
+    }
+    // Migration: add note column (idempotent — ignore error if column exists)
+    try {
+      await this.rdbStore.executeSql('ALTER TABLE clipboard_entry ADD COLUMN note TEXT');
+    } catch (e) {
+      // Column already exists, ignore
+    }
   }
 
   private async createIndexes(): Promise<void> {

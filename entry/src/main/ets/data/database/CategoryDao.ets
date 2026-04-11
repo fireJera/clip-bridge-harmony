@@ -150,6 +150,58 @@ export class CategoryDao {
     }
   }
 
+  async getEntryIdsInAnyFolder(offset: number, limit: number): Promise<number[]> {
+    try {
+      const sql: string =
+        'SELECT DISTINCT ecr.entry_id FROM entry_category_relation ecr ' +
+        'INNER JOIN clipboard_entry ce ON ce.id = ecr.entry_id ' +
+        'ORDER BY ce.updated_at DESC LIMIT ? OFFSET ?';
+      const resultSet = await this.store.querySql(sql, [limit, offset]);
+      const ids: number[] = [];
+      while (resultSet.goToNextRow()) {
+        ids.push(resultSet.getLong(0));
+      }
+      resultSet.close();
+      return ids;
+    } catch (error) {
+      throw new Error(`Failed to get entry ids in any folder: ${error}`);
+    }
+  }
+
+  async getEntriesInAnyFolder(offset: number, limit: number): Promise<ClipboardEntry[]> {
+    try {
+      const sql: string =
+        'SELECT DISTINCT e.* FROM clipboard_entry e ' +
+        'INNER JOIN entry_category_relation r ON e.id = r.entry_id ' +
+        'ORDER BY e.updated_at DESC LIMIT ? OFFSET ?';
+      const resultSet = await this.store.querySql(sql, [limit, offset]);
+      const entries: ClipboardEntry[] = [];
+      while (resultSet.goToNextRow()) {
+        entries.push(this.rowToEntry(resultSet));
+      }
+      resultSet.close();
+      return entries;
+    } catch (error) {
+      throw new Error(`Failed to get entries in any folder: ${error}`);
+    }
+  }
+
+  async countEntriesInAnyFolder(): Promise<number> {
+    try {
+      const resultSet = await this.store.querySql(
+        'SELECT COUNT(DISTINCT entry_id) AS cnt FROM entry_category_relation'
+      );
+      let count: number = 0;
+      if (resultSet.goToFirstRow()) {
+        count = resultSet.getLong(0);
+      }
+      resultSet.close();
+      return count;
+    } catch (error) {
+      throw new Error(`Failed to count entries in any folder: ${error}`);
+    }
+  }
+
   async getTagsForEntry(entryId: number): Promise<CustomCategory[]> {
     try {
       const sql: string =

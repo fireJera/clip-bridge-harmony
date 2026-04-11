@@ -1,24 +1,25 @@
 import { FavoritesViewModel } from '../viewmodel/FavoritesViewModel';
 import { ClipboardEntry } from '../model/ClipboardEntry';
 import { ClipboardListItem } from '../component/ClipboardListItem';
+import { CustomCategory } from '../model/CustomCategory';
 import { EmptyState } from '../component/EmptyState';
 import { LoadingState } from '../component/LoadingState';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 import { AppContext } from '../common/utils/AppContext';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { promptAction } from '@kit.ArkUI';
 
 /**
- * Favorites page showing the list of favorited clipboard entries.
- * Uses ForEach for reliable UI refresh on state changes.
- * Supports search bar, swipe-to-unfavorite, and toggle favorite.
+ * Favorites page showing entries that belong to at least one folder (收藏夹).
+ * Features a horizontal folder filter bar (single-select).
+ * Uses flat ForEach for reliable re-rendering (no nested ForEach).
  */
 @Component
 export struct FavoritesPage {
   @State isLoading: boolean = true;
   @State isEmpty: boolean = true;
-  @State searchKeyword: string = '';
   @State entries: ClipboardEntry[] = [];
+  @State folders: CustomCategory[] = [];
+  @State activeFolderId: number | null = null;
   private viewModel: FavoritesViewModel | null = null;
   @Consume('navPathStack') navPathStack: NavPathStack;
 
@@ -37,10 +38,10 @@ export struct FavoritesPage {
   }
 
   private tryInitViewModel(): void {
-    const clipRepo = AppContext.getClipboardRepo();
-    if (clipRepo) {
+    const categoryRepo = AppContext.getCategoryRepo();
+    if (categoryRepo) {
       hilog.info(0x0000, '[FavoritesPage]', 'repo ready, creating ViewModel');
-      this.viewModel = new FavoritesViewModel(clipRepo);
+      this.viewModel = new FavoritesViewModel(categoryRepo);
       this.loadData();
     } else {
       hilog.info(0x0000, '[FavoritesPage]', 'repo not ready, retrying in 200ms');
@@ -52,7 +53,7 @@ export struct FavoritesPage {
 
   private async loadData(): Promise<void> {
     if (this.viewModel) {
-      await this.viewModel.loadFavorites();
+      await this.viewModel.loadEntries();
       this.syncState();
     } else {
       this.isLoading = false;
@@ -64,7 +65,9 @@ export struct FavoritesPage {
     if (this.viewModel) {
       this.isLoading = this.viewModel.isLoading;
       this.isEmpty = this.viewModel.isEmpty;
-      this.entries = [...this.viewModel.favorites];
+      this.entries = [...this.viewModel.entries];
+      this.folders = [...this.viewModel.folders];
+      this.activeFolderId = this.viewModel.activeFolderId;
     }
   }
 
@@ -82,32 +85,16 @@ export struct FavoritesPage {
       .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
       .alignItems(VerticalAlign.Center)
 
-      // Search bar
-      Row() {
-        TextInput({ placeholder: '搜索收藏...', text: this.searchKeyword })
-          .fontSize(ThemeTokens.FONT_SIZE_BODY)
-          .fontColor(ThemeTokens.TEXT_PRIMARY)
-          .placeholderColor(ThemeTokens.TEXT_TERTIARY)
-          .backgroundColor(ThemeTokens.SURFACE)
-          .borderRadius(ThemeTokens.BORDER_RADIUS_MD)
-          .width('100%')
-          .height(40)
-          .padding({ left: ThemeTokens.SPACING_MD, right: ThemeTokens.SPACING_MD })
-          .onChange((value: string) => {
-            this.searchKeyword = value;
-          })
-          .onSubmit(() => {
-            this.onSearch(this.searchKeyword);
-          })
+      // Folder filter bar
+      if (this.folders.length > 0) {
+        this.FolderFilterBar()
       }
-      .width('100%')
-      .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG, bottom: ThemeTokens.SPACING_SM })
 
       // Content area
       if (this.isLoading) {
         LoadingState()
       } else if (this.isEmpty) {
-        EmptyState({ message: '还没有收藏的条目\n在历史页点击收藏常用内容' })
+        EmptyState({ message: '还没有条目加入收藏夹\n在详情页中将条目添加到收藏夹' })
       } else {
         List({ space: 0 }) {
           ForEach(this.entries, (entry: ClipboardEntry) => {
@@ -116,11 +103,11 @@ export struct FavoritesPage {
                 entry: entry,
                 onItemClick: (e: ClipboardEntry) => this.onItemClick(e),
                 onItemLongPress: (e: ClipboardEntry) => this.onItemLongPress(e),
-                onItemFavorite: (e: ClipboardEntry) => this.onUnfavorite(e)
+                onItemPin: (e: ClipboardEntry) => this.onItemPin(e)
               })
             }
-            .swipeAction({ end: this.SwipeToDeleteBuilder(entry) })
-          }, (entry: ClipboardEntry) => `${entry.id}_${entry.isFavorite}`)
+            .swipeAction({ end: this.SwipeToRemoveBuilder(entry) })
+          }, (entry: ClipboardEntry) => `${entry.id}_${entry.isPinned}`)
         }
         .width('100%')
         .layoutWeight(1)
@@ -133,10 +120,45 @@ export struct FavoritesPage {
     .backgroundColor(ThemeTokens.BACKGROUND)
   }
 
+  // ── Folder filter bar ──────────────────────────────────────────────────
+
   @Builder
-  SwipeToDeleteBuilder(entry: ClipboardEntry) {
+  FolderFilterBar() {
+    Scroll() {
+      Row({ space: ThemeTokens.SPACING_SM }) {
+        ForEach(this.folders, (folder: CustomCategory) => {
+          Row() {
+            Text(folder.name)
+              .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
+              .fontColor(this.activeFolderId === folder.id ? Color.White : ThemeTokens.TEXT_PRIMARY)
+              .fontWeight(this.activeFolderId === folder.id ? ThemeTokens.FONT_WEIGHT_MEDIUM : ThemeTokens.FONT_WEIGHT_REGULAR)
+          }
+          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          .borderRadius(ThemeTokens.BORDER_RADIUS_SM)
+          .backgroundColor(this.activeFolderId === folder.id ? ThemeTokens.PRIMARY : ThemeTokens.SURFACE)
+          .border({
+            width: this.activeFolderId === folder.id ? 0 : 1,
+            color: this.activeFolderId === folder.id ? Color.Transparent : ThemeTokens.DIVIDER
+          })
+          .onClick(() => {
+            this.onFolderFilter(folder.id);
+          })
+        }, (folder: CustomCategory) => `folder_${folder.id}`)
+      }
+      .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
+    }
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .width('100%')
+    .height(44)
+  }
+
+  // ── Swipe action ──────────────────────────────────────────────────────
+
+  @Builder
+  SwipeToRemoveBuilder(entry: ClipboardEntry) {
     Row() {
-      Text('取消收藏')
+      Text('移出收藏夹')
         .fontSize(ThemeTokens.FONT_SIZE_CAPTION)
         .fontColor(Color.White)
         .padding({ left: ThemeTokens.SPACING_LG, right: ThemeTokens.SPACING_LG })
@@ -146,9 +168,11 @@ export struct FavoritesPage {
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Center)
     .onClick(() => {
-      this.onUnfavorite(entry);
+      this.onRemoveFromFolder(entry);
     })
   }
+
+  // ── Handlers ──────────────────────────────────────────────────────────
 
   private onItemClick(entry: ClipboardEntry): void {
     const params: Record<string, Object> = { 'entryId': entry.id };
@@ -162,17 +186,28 @@ export struct FavoritesPage {
     console.info('[FavoritesPage] Item long-pressed: ' + entry.id);
   }
 
-  private async onUnfavorite(entry: ClipboardEntry): Promise<void> {
+  private onItemPin(entry: ClipboardEntry): void {
+    // Pin/unpin doesn't affect favorites page, just reload
+    this.loadData();
+  }
+
+  private async onFolderFilter(folderId: number | null): Promise<void> {
     if (this.viewModel) {
-      promptAction.showToast({ message: '已取消收藏', duration: 1500 });
-      await this.viewModel.unfavorite(entry.id);
+      await this.viewModel.filterByFolder(folderId);
       this.syncState();
     }
   }
 
-  private async onSearch(keyword: string): Promise<void> {
+  private async onRemoveFromFolder(entry: ClipboardEntry): Promise<void> {
     if (this.viewModel) {
-      await this.viewModel.search(keyword);
+      const folderId: number | null = this.activeFolderId;
+      if (folderId !== null) {
+        await this.viewModel.removeFromFolder(entry.id, folderId);
+      } else {
+        // When viewing "all", remove from the first folder found
+        // For simplicity, just reload
+        await this.viewModel.loadEntries();
+      }
       this.syncState();
     }
   }

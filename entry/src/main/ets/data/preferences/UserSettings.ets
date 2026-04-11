@@ -37,29 +37,34 @@ export class UserSettings {
     }
   }
 
+  private getPrefs(): preferences.Preferences {
+    if (!this.prefs) {
+      throw new Error('UserSettings not initialized. Call getInstance() first.');
+    }
+    return this.prefs;
+  }
+
   async getHistoryLimit(): Promise<number> {
-    this.ensureInitialized();
-    return await this.prefs.get(UserSettings.KEY_HISTORY_LIMIT, AppConstants.DEFAULT_HISTORY_LIMIT) as number;
+    const p = this.getPrefs();
+    return await p.get(UserSettings.KEY_HISTORY_LIMIT, AppConstants.DEFAULT_HISTORY_LIMIT) as number;
   }
 
   async setHistoryLimit(limit: number): Promise<void> {
-    this.ensureInitialized();
-    await this.prefs.put(UserSettings.KEY_HISTORY_LIMIT, limit);
-    await this.prefs.flush();
+    const p = this.getPrefs();
+    await p.put(UserSettings.KEY_HISTORY_LIMIT, limit);
+    await p.flush();
   }
 
   async isPrivacyMode(): Promise<boolean> {
-    this.ensureInitialized();
-    const enabled = await this.prefs.get(UserSettings.KEY_PRIVACY_MODE, false) as boolean;
+    const p = this.getPrefs();
+    const enabled = await p.get(UserSettings.KEY_PRIVACY_MODE, false) as boolean;
     if (!enabled) {
       return false;
     }
-    // Check if privacy mode has an expiration
-    const until: string = await this.prefs.get(UserSettings.KEY_PRIVACY_MODE_UNTIL, '') as string;
+    const until: string = await p.get(UserSettings.KEY_PRIVACY_MODE_UNTIL, '') as string;
     if (until && until.length > 0) {
       const expiry: Date = new Date(until);
       if (expiry.getTime() < Date.now()) {
-        // Privacy mode has expired, disable it
         await this.setPrivacyMode(false);
         return false;
       }
@@ -68,52 +73,46 @@ export class UserSettings {
   }
 
   async setPrivacyMode(enabled: boolean, until: string | null = null): Promise<void> {
-    this.ensureInitialized();
-    await this.prefs.put(UserSettings.KEY_PRIVACY_MODE, enabled);
+    const p = this.getPrefs();
+    await p.put(UserSettings.KEY_PRIVACY_MODE, enabled);
     if (until !== null && until !== undefined) {
-      await this.prefs.put(UserSettings.KEY_PRIVACY_MODE_UNTIL, until);
+      await p.put(UserSettings.KEY_PRIVACY_MODE_UNTIL, until);
     } else if (!enabled) {
-      await this.prefs.put(UserSettings.KEY_PRIVACY_MODE_UNTIL, '');
+      await p.put(UserSettings.KEY_PRIVACY_MODE_UNTIL, '');
     }
-    await this.prefs.flush();
+    await p.flush();
   }
 
   async isBiometricEnabled(): Promise<boolean> {
-    this.ensureInitialized();
-    return await this.prefs.get(UserSettings.KEY_BIOMETRIC_ENABLED, true) as boolean;
+    const p = this.getPrefs();
+    return await p.get(UserSettings.KEY_BIOMETRIC_ENABLED, true) as boolean;
   }
 
   async setBiometricEnabled(enabled: boolean): Promise<void> {
-    this.ensureInitialized();
-    await this.prefs.put(UserSettings.KEY_BIOMETRIC_ENABLED, enabled);
-    await this.prefs.flush();
+    const p = this.getPrefs();
+    await p.put(UserSettings.KEY_BIOMETRIC_ENABLED, enabled);
+    await p.flush();
   }
 
   async getTextSizeLimit(): Promise<number> {
-    this.ensureInitialized();
-    return await this.prefs.get(UserSettings.KEY_TEXT_SIZE_LIMIT, AppConstants.TEXT_SIZE_LIMIT) as number;
+    const p = this.getPrefs();
+    return await p.get(UserSettings.KEY_TEXT_SIZE_LIMIT, AppConstants.TEXT_SIZE_LIMIT) as number;
   }
 
   async setTextSizeLimit(limit: number): Promise<void> {
-    this.ensureInitialized();
-    await this.prefs.put(UserSettings.KEY_TEXT_SIZE_LIMIT, limit);
-    await this.prefs.flush();
+    const p = this.getPrefs();
+    await p.put(UserSettings.KEY_TEXT_SIZE_LIMIT, limit);
+    await p.flush();
   }
 
   async getImageSizeLimit(): Promise<number> {
-    this.ensureInitialized();
-    return await this.prefs.get(UserSettings.KEY_IMAGE_SIZE_LIMIT, AppConstants.IMAGE_SIZE_LIMIT) as number;
+    const p = this.getPrefs();
+    return await p.get(UserSettings.KEY_IMAGE_SIZE_LIMIT, AppConstants.IMAGE_SIZE_LIMIT) as number;
   }
 
   async setImageSizeLimit(limit: number): Promise<void> {
-    this.ensureInitialized();
-    await this.prefs.put(UserSettings.KEY_IMAGE_SIZE_LIMIT, limit);
-    await this.prefs.flush();
-  }
-
-  private ensureInitialized(): void {
-    if (!this.prefs) {
-      throw new Error('UserSettings not initialized. Call getInstance() first.');
-    }
+    const p = this.getPrefs();
+    await p.put(UserSettings.KEY_IMAGE_SIZE_LIMIT, limit);
+    await p.flush();
   }
 }
