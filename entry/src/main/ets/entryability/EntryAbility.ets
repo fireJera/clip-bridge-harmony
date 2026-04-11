@@ -126,13 +126,6 @@ export default class EntryAbility extends UIAbility {
   onWindowStageCreate(windowStage: window.WindowStage): void {
     hilog.info(DOMAIN, TAG, 'onWindowStageCreate');
 
-    // Set status bar to dark text on light background for readability
-    const mainWindow = windowStage.getMainWindowSync();
-    mainWindow.setWindowSystemBarProperties({
-      statusBarColor: '#F1F3F5',
-      statusBarContentColor: '#000000'
-    });
-
     // Load the main page
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {

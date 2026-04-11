@@ -6,6 +6,8 @@ import { DetailPage } from './DetailPage';
 import { SplashPage } from './SplashPage';
 import { ThemeTokens } from '../common/theme/ThemeTokens';
 import { AppContext } from '../common/utils/AppContext';
+import { window } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 
 interface DetailPageParams {
   entryId: number;
@@ -73,10 +75,23 @@ struct Index {
     Stack() {
       if (this.showSplash) {
         SplashPage({
-          onFinished: () => {
+          onFinished: async () => {
             animateTo({ duration: 400, curve: Curve.EaseInOut }, () => {
               this.showSplash = false;
             });
+            // Set status bar style after splash animation starts
+            setTimeout(async () => {
+              try {
+                const context = AppContext.getContext() as common.UIAbilityContext;
+                const mainWindow = await window.getLastWindow(context);
+                mainWindow.setWindowSystemBarProperties({
+                  statusBarColor: '#F1F3F5',
+                  statusBarContentColor: '#000000'
+                });
+              } catch (e) {
+                // ignore
+              }
+            }, 400);
           }
         })
       }
