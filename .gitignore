@@ -4,6 +4,7 @@
 # Build
 .hvigor/
 entry/build/
+build
 
 # OS
 .DS_Store

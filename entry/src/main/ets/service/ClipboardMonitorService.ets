@@ -357,7 +357,7 @@ export class ClipboardMonitorService {
     try {
       const context = AppContext.getContext();
       const wantAgentInfo: wantAgent.WantAgentInfo = {
-        wants: [{ bundleName: 'com.clipbridge.harmony', abilityName: 'EntryAbility' }],
+        wants: [{ bundleName: 'com.jeremy.clipbridge', abilityName: 'EntryAbility' }],
         operationType: wantAgent.OperationType.START_ABILITY,
         requestCode: 0,
         wantAgentFlags: [wantAgent.WantAgentFlags.CONSTANT_FLAG]

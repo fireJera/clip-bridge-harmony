@@ -1,6 +1,6 @@
 {
   "app": {
-    "bundleName": "com.clipbridge.harmony",
+    "bundleName": "com.jeremy.clipbridge",
     "vendor": "clipbridge",
     "versionCode": 1000000,
     "versionName": "1.0.0",
